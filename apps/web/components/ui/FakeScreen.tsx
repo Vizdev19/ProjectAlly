@@ -7,7 +7,7 @@ interface FakeScreenProps {
   style?: React.CSSProperties;
 }
 
-const TrafficLights = ({ bg }: { bg: string }) => (
+const TrafficLights = () => (
   <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
     <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#FF5F57" }} />
     <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#FEBC2E" }} />
@@ -19,7 +19,7 @@ function FigmaScreen() {
   return (
     <div style={{ position: "absolute", inset: 0, background: "#F4F0FA", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 18, background: "#E8E2F0", display: "flex", alignItems: "center", paddingLeft: 6, gap: 8 }}>
-        <TrafficLights bg="#E8E2F0" />
+        <TrafficLights />
         <div style={{ flex: 1, height: 8, borderRadius: 4, background: "#D8D0EC" }} />
       </div>
       <div style={{ display: "flex", flex: 1 }}>
@@ -52,7 +52,7 @@ function LinearScreen() {
   return (
     <div style={{ position: "absolute", inset: 0, background: "#1F1B2E", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 18, background: "#2A2440", display: "flex", alignItems: "center", paddingLeft: 6, gap: 8 }}>
-        <TrafficLights bg="#2A2440" />
+        <TrafficLights />
         <div style={{ flex: 1, height: 7, borderRadius: 4, background: "#3A3054" }} />
       </div>
       <div style={{ display: "flex", flex: 1 }}>
@@ -77,7 +77,7 @@ function EmailScreen() {
   return (
     <div style={{ position: "absolute", inset: 0, background: "#FFFFFF", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 18, background: "#F0EDE6", display: "flex", alignItems: "center", paddingLeft: 6, gap: 8 }}>
-        <TrafficLights bg="#F0EDE6" />
+        <TrafficLights />
         <div style={{ flex: 1, height: 7, borderRadius: 4, background: "#E0DDD8" }} />
       </div>
       <div style={{ display: "flex", flex: 1 }}>
@@ -106,7 +106,7 @@ function BankScreen() {
   return (
     <div style={{ position: "absolute", inset: 0, background: "#FFFFFF", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 22, background: "#0B7B3A", display: "flex", alignItems: "center", paddingLeft: 6, gap: 8 }}>
-        <TrafficLights bg="#0B7B3A" />
+        <TrafficLights />
         <div style={{ flex: 1, height: 7, borderRadius: 4, background: "rgba(255,255,255,0.2)" }} />
       </div>
       <div style={{ padding: "6px 8px", display: "flex", flexDirection: "column", gap: 3 }}>
@@ -122,18 +122,20 @@ function BankScreen() {
   );
 }
 
+const CODE_LINE_WIDTHS = [16, 26, 12, 22, 28, 14, 20, 18];
+
 function CodeScreen() {
   const colors = ["#FF4A8E", "#5B6CFF", "#3DC9B3", "#FF8A4C", "#B254E8", "#F4B740", "#3DC9B3", "#FF4A8E"];
   return (
     <div style={{ position: "absolute", inset: 0, background: "#0F0B17", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 18, background: "#1E1830", display: "flex", alignItems: "center", paddingLeft: 6, gap: 8 }}>
-        <TrafficLights bg="#1E1830" />
+        <TrafficLights />
         <div style={{ flex: 1, height: 7, borderRadius: 4, background: "#2E2840" }} />
       </div>
       <div style={{ flex: 1, padding: "4px 6px", display: "flex", flexDirection: "column", gap: 2 }}>
         {colors.map((c, i) => (
           <div key={i} style={{ height: 7, borderRadius: 3, background: "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", gap: 3 }}>
-            <div style={{ width: Math.random() * 20 + 8, height: 4, borderRadius: 2, background: c, opacity: 0.7, flexShrink: 0 }} />
+            <div style={{ width: CODE_LINE_WIDTHS[i], height: 4, borderRadius: 2, background: c, opacity: 0.7, flexShrink: 0 }} />
             <div style={{ height: 4, flex: 1, borderRadius: 2, background: "rgba(255,255,255,0.1)" }} />
           </div>
         ))}
@@ -146,7 +148,7 @@ function SlackScreen() {
   return (
     <div style={{ position: "absolute", inset: 0, background: "#FFFFFF", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 18, background: "#F0EDE6", display: "flex", alignItems: "center", paddingLeft: 6, gap: 8 }}>
-        <TrafficLights bg="#F0EDE6" />
+        <TrafficLights />
         <div style={{ flex: 1, height: 7, borderRadius: 4, background: "#E0DDD8" }} />
       </div>
       <div style={{ display: "flex", flex: 1 }}>
@@ -175,7 +177,7 @@ function SheetScreen() {
   return (
     <div style={{ position: "absolute", inset: 0, background: "#FFFFFF", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 18, background: "#E8F5EE", display: "flex", alignItems: "center", paddingLeft: 6, gap: 8 }}>
-        <TrafficLights bg="#E8F5EE" />
+        <TrafficLights />
         <div style={{ height: 7, width: 50, borderRadius: 4, background: "rgba(11,123,58,0.2)" }} />
       </div>
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gridTemplateRows: "repeat(6, 1fr)", gap: 1, padding: 2, background: "#E0E0E0" }}>
@@ -194,7 +196,7 @@ function TerminalScreen() {
   return (
     <div style={{ position: "absolute", inset: 0, background: "#0B0915", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 18, background: "#1E1830", display: "flex", alignItems: "center", paddingLeft: 6, gap: 8 }}>
-        <TrafficLights bg="#1E1830" />
+        <TrafficLights />
         <div style={{ flex: 1, height: 7, borderRadius: 4, background: "#2E2840" }} />
       </div>
       <div style={{ flex: 1, padding: "4px 6px", display: "flex", flexDirection: "column", gap: 3 }}>
@@ -213,7 +215,7 @@ function NotionScreen() {
   return (
     <div style={{ position: "absolute", inset: 0, background: "#FBFAF7", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 18, background: "#F0EDE6", display: "flex", alignItems: "center", paddingLeft: 6, gap: 8 }}>
-        <TrafficLights bg="#F0EDE6" />
+        <TrafficLights />
         <div style={{ flex: 1, height: 7, borderRadius: 4, background: "#E0DDD8" }} />
       </div>
       <div style={{ display: "flex", flex: 1 }}>
@@ -237,7 +239,7 @@ function DocScreen() {
   return (
     <div style={{ position: "absolute", inset: 0, background: "#FBF7EE", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 18, background: "#EEE8DC", display: "flex", alignItems: "center", paddingLeft: 6, gap: 8 }}>
-        <TrafficLights bg="#EEE8DC" />
+        <TrafficLights />
         <div style={{ flex: 1, height: 7, borderRadius: 4, background: "#DDD8CC" }} />
       </div>
       <div style={{ flex: 1, padding: "8px 16px", display: "flex", flexDirection: "column", gap: 5 }}>
@@ -254,7 +256,7 @@ function PhotoScreen() {
   return (
     <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, #FF8A4C 0%, #FF4A8E 50%, #B254E8 100%)", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 18, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", paddingLeft: 6, gap: 8 }}>
-        <TrafficLights bg="transparent" />
+        <TrafficLights />
       </div>
       <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ width: 50, height: 50, borderRadius: "50%", background: "rgba(255,255,255,0.2)", border: "2px solid rgba(255,255,255,0.3)" }} />

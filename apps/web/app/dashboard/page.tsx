@@ -14,7 +14,6 @@ const TEAM = [
 
 type ScreenKind = "figma" | "linear" | "email" | "bank" | "code" | "slack" | "sheet" | "terminal" | "notion" | "doc" | "photo";
 
-const SHOT_KINDS: ScreenKind[] = ["figma", "slack", "notion", "linear", "code", "figma", "email", "figma", "slack", "notion", "linear", "code", "figma", "email", "notion"];
 
 const STATUS_COLOR: Record<string, string> = {
   tracking: "#3DC9B3",
@@ -250,12 +249,12 @@ function DetailDrawer({ shot, onClose }: { shot: DrawerShot | null, onClose: () 
 
         <div style={{ background: "var(--surface)", borderRadius: 12, padding: "14px 16px", marginBottom: 16, borderLeft: "3px solid var(--g-orange)" }}>
           <p style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>Employee note</p>
-          <p className="font-serif" style={{ fontSize: 14, color: "var(--ink-2)", lineHeight: 1.6, fontStyle: "italic" }}>"Iterating on the hero section — comparing variant 3 vs 4 side by side."</p>
+          <p className="font-serif" style={{ fontSize: 14, color: "var(--ink-2)", lineHeight: 1.6, fontStyle: "italic" }}>&ldquo;Iterating on the hero section &mdash; comparing variant 3 vs 4 side by side.&rdquo;</p>
         </div>
 
         <div style={{ background: "var(--good-bg)", border: "1px solid rgba(11,123,58,0.2)", borderRadius: 12, padding: "14px 16px", marginBottom: 20 }}>
           <p style={{ fontSize: 12, fontWeight: 700, color: "var(--good)", marginBottom: 4 }}>Review summary</p>
-          <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.5 }}>Screenshot approved by {shot.member.name.split(" ")[0]} at {shot.time}. Included in today's session report.</p>
+          <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.5 }}>Screenshot approved by {shot.member.name.split(" ")[0]} at {shot.time}. Included in today&apos;s session report.</p>
         </div>
 
         <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
@@ -271,7 +270,7 @@ function DetailDrawer({ shot, onClose }: { shot: DrawerShot | null, onClose: () 
 export default function DashboardPage() {
   const [selectedShot, setSelectedShot] = useState<DrawerShot | null>(null);
 
-  const memberShots = (memberId: string): Shot[] => {
+  const memberShots = (_memberId: string): Shot[] => {
     const kinds: ScreenKind[] = ["figma", "slack", "notion", "linear", "code", "figma", "email", "figma"];
     const times = ["9:02", "9:12", "9:22", "9:32", "9:42", "9:52", "10:02", "10:12"];
     return kinds.slice(0, 5).map((k, i) => ({ kind: k, time: times[i] + " AM" }));
@@ -286,7 +285,7 @@ export default function DashboardPage() {
 
         <main style={{ flex: 1, overflowY: "auto", padding: "24px 28px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)" }}>Today's screenshots</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)" }}>Today&apos;s screenshots</h1>
             <div style={{ display: "flex", alignItems: "center", gap: 7, background: "var(--danger-bg)", border: "1px solid rgba(255,74,142,0.2)", borderRadius: 100, padding: "4px 12px" }}>
               <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--g-pink)", animation: "pulse-dot 2s ease-in-out infinite" }} />
               <span style={{ fontSize: 12, fontWeight: 600, color: "var(--g-pink)" }}>Wed, 14 May</span>

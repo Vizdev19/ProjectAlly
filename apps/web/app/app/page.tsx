@@ -48,7 +48,7 @@ function Sidebar({ timerState }: { timerState: TimerState }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--surface-2)", borderRadius: 12 }}>
           <Avatar initials="EM" color="#FF8A4C" size={30} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>Elena's view</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>Elena&apos;s view</p>
             <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: timerState === "tracking" ? "#3DC9B3" : timerState === "paused" ? "#F4B740" : "var(--muted)" }} />
               <span style={{ fontSize: 11, color: timerState === "tracking" ? "#3DC9B3" : timerState === "paused" ? "#F4B740" : "var(--muted)", fontWeight: 600 }}>

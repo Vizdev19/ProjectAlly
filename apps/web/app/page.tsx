@@ -243,7 +243,7 @@ function Testimonial() {
         <div style={{ position: "relative", background: "var(--bg)", border: "1px solid var(--line-2)", borderRadius: 24, padding: "52px 52px 44px", boxShadow: "var(--shadow-md)" }}>
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 24 }}>Customer story</p>
           <blockquote className="font-serif" style={{ fontSize: 30, lineHeight: 1.45, color: "var(--ink)", fontStyle: "italic", marginBottom: 36 }}>
-            "AllyTracker is the first monitoring tool our employees actually asked us to keep. The consent flow isn't just ethical — it builds the kind of trust that makes remote work sustainable."
+            &ldquo;AllyTracker is the first monitoring tool our employees actually asked us to keep. The consent flow isn&apos;t just ethical &mdash; it builds the kind of trust that makes remote work sustainable.&rdquo;
           </blockquote>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <Avatar initials="ML" color="#FF8A4C" size={44} />
