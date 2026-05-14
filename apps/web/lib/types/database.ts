@@ -3,7 +3,7 @@ export type Role = 'admin' | 'employee'
 export type SessionStatus = 'tracking' | 'paused' | 'ended'
 export type ScreenshotStatus = 'pending' | 'approved' | 'removed'
 
-export interface Organization {
+export type Organization = {
   id: string
   name: string
   slug: string
@@ -11,7 +11,7 @@ export interface Organization {
   created_at: string
 }
 
-export interface Member {
+export type Member = {
   id: string
   org_id: string
   user_id: string
@@ -22,7 +22,7 @@ export interface Member {
   created_at: string
 }
 
-export interface TrackingSession {
+export type TrackingSession = {
   id: string
   org_id: string
   member_id: string
@@ -35,7 +35,7 @@ export interface TrackingSession {
   created_at: string
 }
 
-export interface Screenshot {
+export type Screenshot = {
   id: string
   org_id: string
   member_id: string
@@ -54,7 +54,7 @@ export interface Screenshot {
 
 // ── Joined types used in UI ───────────────────────────────────
 
-export interface MemberWithStats extends Member {
+export type MemberWithStats = Member & {
   active_session: TrackingSession | null
   today: {
     approved: number
@@ -64,35 +64,45 @@ export interface MemberWithStats extends Member {
   }
 }
 
-export interface ScreenshotWithMember extends Screenshot {
+export type ScreenshotWithMember = Screenshot & {
   member: Pick<Member, 'id' | 'full_name' | 'avatar_color'>
 }
 
 // ── Supabase Database type map ────────────────────────────────
+// Row types must be `type` (not `interface`) so they satisfy
+// Supabase's `Record<string, unknown>` constraint in GenericTable.
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       organizations: {
         Row: Organization
         Insert: Omit<Organization, 'id' | 'created_at'>
         Update: Partial<Omit<Organization, 'id' | 'created_at'>>
+        Relationships: []
       }
       members: {
         Row: Member
         Insert: Omit<Member, 'id' | 'created_at'>
         Update: Partial<Omit<Member, 'id' | 'created_at'>>
+        Relationships: []
       }
       tracking_sessions: {
         Row: TrackingSession
         Insert: Omit<TrackingSession, 'id' | 'created_at'>
         Update: Partial<Omit<TrackingSession, 'id' | 'created_at'>>
+        Relationships: []
       }
       screenshots: {
         Row: Screenshot
         Insert: Omit<Screenshot, 'id' | 'created_at'>
         Update: Partial<Omit<Screenshot, 'id' | 'created_at'>>
+        Relationships: []
       }
     }
+    Views: Record<never, never>
+    Functions: Record<never, never>
+    Enums: Record<never, never>
+    CompositeTypes: Record<never, never>
   }
 }
