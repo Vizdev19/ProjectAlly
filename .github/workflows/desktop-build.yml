@@ -1,0 +1,75 @@
+name: Desktop Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"           # triggers on version tags: v0.1.0, v1.2.3, etc.
+  workflow_dispatch:   # allows manual trigger from GitHub UI
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: "--target aarch64-apple-darwin"   # Apple Silicon
+          - platform: macos-latest
+            args: "--target x86_64-apple-darwin"    # Intel Mac
+          - platform: windows-latest
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    defaults:
+      run:
+        working-directory: apps/desktop
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: .
+
+      - name: Install desktop dependencies
+        run: npm install
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "AllyTracker ${{ github.ref_name }}"
+          releaseBody: |
+            Download the installer for your platform below.
+
+            **macOS**: Download the `.dmg` file. Right-click → Open on first launch (no code signing yet).
+            **Windows**: Download the `.msi` or `.exe` installer. Click "More info → Run anyway" if SmartScreen appears.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
