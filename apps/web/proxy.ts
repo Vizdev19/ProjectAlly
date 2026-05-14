@@ -5,7 +5,7 @@ import type { Database } from "@/lib/types/database";
 const PROTECTED = ["/dashboard", "/app", "/auth/onboarding"];
 const AUTH_ONLY = ["/sign-in", "/sign-up"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient<Database>(
