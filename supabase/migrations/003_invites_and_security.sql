@@ -10,7 +10,10 @@
 --   New:  Invite flow — admin invites teammates, trigger auto-accepts on signup
 -- ============================================================
 
-create extension if not exists pgcrypto;
+-- pgcrypto is already installed by Supabase in the `extensions` schema, but
+-- `gen_random_bytes` may not be on the default search_path. We use the core
+-- `gen_random_uuid()` (already used elsewhere in this schema) to generate
+-- random tokens and slug suffixes — no extension dependency needed.
 
 -- ============================================================
 -- 1. Fix helper functions to be SECURITY DEFINER
@@ -94,8 +97,10 @@ create table if not exists invites (
   role        text        not null default 'employee'
                 check (role in ('admin', 'employee')),
   full_name   text,
+  -- 64 hex chars from two concatenated UUIDs (hyphens stripped). Plenty of
+  -- entropy and avoids pgcrypto search_path issues on Supabase.
   token       text        not null unique
-                default encode(gen_random_bytes(24), 'hex'),
+                default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
   invited_by  uuid        references members(id) on delete set null,
   expires_at  timestamptz not null default (now() + interval '7 days'),
   accepted_at timestamptz,
@@ -335,7 +340,7 @@ begin
    where id = auth.uid();
 
   v_slug := lower(regexp_replace(p_company_name, '[^a-zA-Z0-9]+', '-', 'g'))
-            || '-' || substr(encode(gen_random_bytes(4), 'hex'), 1, 6);
+            || '-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 6);
 
   insert into organizations (name, slug, plan)
   values (trim(p_company_name), v_slug, 'team')
@@ -411,7 +416,7 @@ begin
   end if;
 
   v_slug := lower(regexp_replace(v_company, '[^a-zA-Z0-9]+', '-', 'g'))
-            || '-' || substr(encode(gen_random_bytes(4), 'hex'), 1, 6);
+            || '-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 6);
 
   insert into public.organizations (name, slug, plan)
   values (v_company, v_slug, 'team')
