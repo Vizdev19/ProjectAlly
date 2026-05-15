@@ -35,6 +35,7 @@ export async function proxy(request: NextRequest) {
   const isAdminOnly    = ADMIN_ONLY.some((p) => pathname.startsWith(p));
   const isAuthPage     = AUTH_PAGES.some((p) => pathname.startsWith(p));
   const isInvitePage   = pathname.startsWith("/invite/");
+  const isDownloadPage = pathname.startsWith("/download");
 
   // Unauthenticated user hitting a protected route → sign in
   if (isAuthRequired && !user) {
@@ -57,8 +58,9 @@ export async function proxy(request: NextRequest) {
     .maybeSingle();
 
   // Authenticated user with no member row → must finish onboarding
-  // (unless they're already on onboarding or accepting an invite)
-  if (!member && !pathname.startsWith("/auth/onboarding") && !isInvitePage) {
+  // (unless they're already on onboarding, accepting an invite, or just
+  // visiting the public download page)
+  if (!member && !pathname.startsWith("/auth/onboarding") && !isInvitePage && !isDownloadPage) {
     return NextResponse.redirect(new URL("/auth/onboarding", request.url));
   }
 

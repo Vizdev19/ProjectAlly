@@ -61,6 +61,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Vite reads these at build time and bakes them into the bundle.
+          # Without them, the desktop app boots to "Setup incomplete".
+          VITE_SUPABASE_URL:      ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          VITE_APP_URL:           ${{ secrets.NEXT_PUBLIC_APP_URL }}
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}

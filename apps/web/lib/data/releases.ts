@@ -1,0 +1,73 @@
+// ============================================================
+// GitHub Releases — fetch the latest published desktop release
+// ============================================================
+// Used by /download to point employees at the right installer for their OS.
+
+const GITHUB_REPO = "Vizdev19/ProjectAlly";
+
+export type ReleaseAsset = {
+  name: string;
+  url:  string;
+  size: number;
+};
+
+export type LatestRelease = {
+  tag:         string;
+  publishedAt: string;
+  htmlUrl:     string;
+  /** Apple Silicon (M-series) macOS .dmg */
+  macArm:      ReleaseAsset | null;
+  /** Intel macOS .dmg */
+  macIntel:    ReleaseAsset | null;
+  /** Windows installer (msi preferred, exe fallback) */
+  windows:     ReleaseAsset | null;
+  /** All assets if the consumer wants a full list */
+  all:         ReleaseAsset[];
+};
+
+/**
+ * Fetches the latest published release. Returns null if the repo has no
+ * releases yet (which is what /download will show before the first tag ships).
+ *
+ * Cached for 5 min to avoid hammering GitHub's 60-req/hr unauthenticated rate
+ * limit if the page gets hit a lot.
+ */
+export async function getLatestRelease(): Promise<LatestRelease | null> {
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/vnd.github+json" },
+      next:    { revalidate: 300 },
+    });
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as {
+      tag_name:     string;
+      published_at: string;
+      html_url:     string;
+      assets:       Array<{ name: string; browser_download_url: string; size: number }>;
+    };
+
+    const all: ReleaseAsset[] = data.assets.map((a) => ({
+      name: a.name, url: a.browser_download_url, size: a.size,
+    }));
+
+    const findFirst = (pred: (n: string) => boolean) =>
+      all.find((a) => pred(a.name.toLowerCase())) ?? null;
+
+    return {
+      tag:         data.tag_name,
+      publishedAt: data.published_at,
+      htmlUrl:     data.html_url,
+      // Tauri's macOS bundle names look like "AllyTracker_0.1.0_aarch64.dmg"
+      // and "AllyTracker_0.1.0_x64.dmg" — match those flexibly.
+      macArm:      findFirst((n) => n.endsWith(".dmg") && (n.includes("aarch64") || n.includes("arm64"))),
+      macIntel:    findFirst((n) => n.endsWith(".dmg") && (n.includes("x64") || n.includes("x86_64") || n.includes("intel"))),
+      // Prefer MSI over EXE
+      windows:     findFirst((n) => n.endsWith(".msi")) ?? findFirst((n) => n.endsWith(".exe")),
+      all,
+    };
+  } catch {
+    return null;
+  }
+}

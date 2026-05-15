@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import type { TrackingSession } from "@/lib/types/database";
@@ -498,6 +499,24 @@ export default function EmployeeAppClient({ data }: { data: EmployeeAppData }) {
           {error && (
             <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid rgba(196,28,60,0.2)", fontSize: 13, color: "var(--danger)" }}>
               {error}
+            </div>
+          )}
+
+          {/* Desktop install nudge — shown until the user has any captured shot today */}
+          {data.stats.pending + data.stats.approved + data.stats.removed === 0 && (
+            <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 12, background: "linear-gradient(115deg, rgba(255,138,76,0.10), rgba(91,108,255,0.10))", border: "1px solid rgba(178,84,232,0.25)", display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 18 }}>💻</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>
+                  Install AllyTracker Desktop to capture screenshots
+                </p>
+                <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}>
+                  Tracking only captures screens once the desktop agent is running.
+                </p>
+              </div>
+              <Link href="/download" style={{ padding: "8px 16px", background: "var(--brand-grad)", color: "#fff", borderRadius: 100, fontSize: 13, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}>
+                Download →
+              </Link>
             </div>
           )}
 

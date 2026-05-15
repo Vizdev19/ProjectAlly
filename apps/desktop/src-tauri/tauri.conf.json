@@ -42,7 +42,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/YOUR_ORG/ally-tracker/releases/latest/download/latest.json"
+        "https://github.com/Vizdev19/ProjectAlly/releases/latest/download/latest.json"
       ],
       "dialog": true,
       "pubkey": ""
