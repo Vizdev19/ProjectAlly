@@ -3,6 +3,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { destinationForMember, safeNext } from "@/lib/auth/redirect";
+import { sendEmail } from "@/lib/email/resend";
+import { inviteEmail } from "@/lib/email/templates/invite";
 
 export async function signInWithEmail(formData: FormData) {
   const supabase = await createClient();
@@ -98,7 +100,51 @@ export async function createInvite(formData: FormData) {
   });
 
   if (error) return { error: error.message };
-  return { invite: data };
+  if (!data || !data.token) return { error: "Failed to create invite." };
+
+  // Fetch context for the email — inviter name and org name
+  const { data: { user } } = await supabase.auth.getUser();
+  let inviterName = "A teammate";
+  let orgName     = "AllyTracker";
+
+  if (user) {
+    const { data: me } = await supabase
+      .from("members")
+      .select("full_name, org_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (me) {
+      inviterName = me.full_name || inviterName;
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("name")
+        .eq("id", me.org_id)
+        .maybeSingle();
+      if (org?.name) orgName = org.name;
+    }
+  }
+
+  const appUrl    = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const acceptUrl = `${appUrl}/invite/${data.token}`;
+
+  const { subject, html, text } = inviteEmail({
+    orgName,
+    inviterName,
+    role:      role === "admin" ? "admin" : "employee",
+    acceptUrl,
+  });
+
+  const send = await sendEmail({
+    to:      email,
+    subject,
+    html,
+    text,
+    replyTo: user?.email,
+  });
+
+  // The invite row still exists either way — the admin can copy the link from
+  // the team page as a fallback if email failed.
+  return { invite: data, emailSent: send.ok, emailError: send.ok ? undefined : send.error };
 }
 
 export async function revokeInvite(inviteId: string) {

@@ -46,11 +46,18 @@ export default function TeamClient({
     setError(null);
     setSuccess(null);
     const fd = new FormData(e.currentTarget);
+    const inviteEmail = String(fd.get("email") ?? "").trim();
     startTransition(async () => {
       const result = await createInvite(fd);
       if (result.error) { setError(result.error); return; }
       (e.target as HTMLFormElement).reset();
-      setSuccess("Invitation created. Copy the link to share.");
+      if (result.emailSent) {
+        setSuccess(`Invitation email sent to ${inviteEmail}.`);
+      } else if (result.emailError) {
+        setSuccess(`Invite created. Email send failed (${result.emailError}). Copy the link below to share manually.`);
+      } else {
+        setSuccess("Invite created. Copy the link below to share.");
+      }
       router.refresh();
     });
   }
