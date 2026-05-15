@@ -61,9 +61,16 @@ pub fn current() -> Option<AuthContext> {
     AUTH.lock().expect("auth").clone()
 }
 
-pub fn start_capture(session_id: String) {
-    *STATE.lock().expect("state") = CaptureState::Capturing;
+/// Returns true iff this call transitioned from Idle → Capturing (a fresh
+/// start, as opposed to a re-assert during tracking or a resume from paused).
+/// The caller uses this to decide whether to fire an immediate capture so the
+/// user doesn't wait a full interval for the first screenshot.
+pub fn start_capture(session_id: String) -> bool {
+    let mut state = STATE.lock().expect("state");
+    let was_idle = *state == CaptureState::Idle;
+    *state = CaptureState::Capturing;
     *SESSION_ID.lock().expect("session_id") = Some(session_id);
+    was_idle
 }
 
 pub fn pause_capture() {

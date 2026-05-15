@@ -32,11 +32,21 @@ fn session_status() -> SessionStatus {
 // ── Capture lifecycle ────────────────────────────────────────────
 
 #[tauri::command]
-fn start_capture(session_id: String) -> Result<(), String> {
+fn start_capture(app: AppHandle, session_id: String) -> Result<(), String> {
     if session::current().is_none() {
         return Err("not authenticated".into());
     }
-    session::start_capture(session_id);
+    let was_idle = session::start_capture(session_id);
+    if was_idle {
+        // Fresh start — fire one capture in the background so the user doesn't
+        // wait a full CAPTURE_INTERVAL_SECS for the first screenshot. Spawned,
+        // not awaited, so the UI returns immediately; errors are logged.
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = screenshot::capture_now(&app).await {
+                eprintln!("[screenshot] initial capture: {e:#}");
+            }
+        });
+    }
     Ok(())
 }
 
