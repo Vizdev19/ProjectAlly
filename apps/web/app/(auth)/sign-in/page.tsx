@@ -83,13 +83,10 @@ function SignInContent() {
                 </button>
               </div>
             </Field>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--ink-2)", cursor: "pointer" }}>
-                <input type="checkbox" name="remember" style={{ accentColor: "var(--g-magenta)" }} />
-                Keep me signed in
-              </label>
-              <a href="#" style={{ fontSize: 13, color: "var(--g-magenta)", textDecoration: "none" }}>Sign in with SSO →</a>
-            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--ink-2)", cursor: "pointer" }}>
+              <input type="checkbox" name="remember" style={{ accentColor: "var(--g-magenta)" }} />
+              Keep me signed in
+            </label>
             <button type="submit" disabled={isPending} style={gradBtnStyle}>
               {isPending ? "Signing in…" : "Sign in to AllyTracker"}
             </button>
