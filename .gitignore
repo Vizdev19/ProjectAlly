@@ -8,3 +8,6 @@ target
 .env.local
 .DS_Store
 supabase/.temp
+
+# Tauri generated schemas (re-created from capabilities on build)
+apps/desktop/src-tauri/gen/

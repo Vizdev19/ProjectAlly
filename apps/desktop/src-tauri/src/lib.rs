@@ -1,57 +1,85 @@
-use tauri::Manager;
+use tauri::AppHandle;
 
 mod screenshot;
-mod tracker;
+mod session;
 mod tray;
 
-pub use tracker::TrackingSession;
+// Re-export type used in commands so Tauri's macro can resolve it
+pub use session::{AuthContext, SessionStatus};
 
+// ── Auth commands ────────────────────────────────────────────────
+
+/// Web app calls this once after Supabase sign-in to hand us tokens + IDs.
+/// Replaces any previously-registered session.
 #[tauri::command]
-async fn start_tracking(session_id: String, project: String) -> Result<(), String> {
-    tracker::start(session_id, project).await.map_err(|e| e.to_string())
+fn register_session(ctx: AuthContext) -> Result<(), String> {
+    session::register(ctx);
+    Ok(())
+}
+
+/// Clear stored auth (called on sign-out from the web).
+#[tauri::command]
+fn clear_session() -> Result<(), String> {
+    session::clear();
+    Ok(())
 }
 
 #[tauri::command]
-async fn pause_tracking() -> Result<(), String> {
-    tracker::pause().await.map_err(|e| e.to_string())
+fn session_status() -> SessionStatus {
+    session::status()
+}
+
+// ── Capture lifecycle ────────────────────────────────────────────
+
+#[tauri::command]
+fn start_capture(session_id: String) -> Result<(), String> {
+    if session::current().is_none() {
+        return Err("not authenticated".into());
+    }
+    session::start_capture(session_id);
+    Ok(())
 }
 
 #[tauri::command]
-async fn end_tracking() -> Result<TrackingSession, String> {
-    tracker::end().await.map_err(|e| e.to_string())
+fn pause_capture() -> Result<(), String> {
+    session::pause_capture();
+    Ok(())
 }
 
 #[tauri::command]
-async fn get_pending_screenshots() -> Result<Vec<screenshot::Screenshot>, String> {
-    screenshot::get_pending().await.map_err(|e| e.to_string())
+fn resume_capture() -> Result<(), String> {
+    session::resume_capture();
+    Ok(())
 }
 
 #[tauri::command]
-async fn approve_screenshot(id: String, note: Option<String>) -> Result<(), String> {
-    screenshot::approve(id, note).await.map_err(|e| e.to_string())
+fn stop_capture() -> Result<(), String> {
+    session::stop_capture();
+    Ok(())
 }
 
+/// Manual "capture now" — useful for tray menus and as a sanity check that
+/// the upload pipeline actually works on this machine.
 #[tauri::command]
-async fn remove_screenshot(id: String) -> Result<(), String> {
-    screenshot::remove(id).await.map_err(|e| e.to_string())
+async fn capture_now(app: AppHandle) -> Result<(), String> {
+    screenshot::capture_now(&app)
+        .await
+        .map_err(|e| format!("{e:#}"))
 }
 
-#[tauri::command]
-async fn approve_all_screenshots() -> Result<(), String> {
-    screenshot::approve_all().await.map_err(|e| e.to_string())
-}
+// ── Setup ────────────────────────────────────────────────────────
 
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),
         ))
         .setup(|app| {
             tray::setup_tray(app)?;
-            // Start screenshot capture loop in background
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 screenshot::capture_loop(app_handle).await;
@@ -59,13 +87,14 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            start_tracking,
-            pause_tracking,
-            end_tracking,
-            get_pending_screenshots,
-            approve_screenshot,
-            remove_screenshot,
-            approve_all_screenshots,
+            register_session,
+            clear_session,
+            session_status,
+            start_capture,
+            pause_capture,
+            resume_capture,
+            stop_capture,
+            capture_now,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AllyTracker");
