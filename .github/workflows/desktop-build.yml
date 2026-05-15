@@ -53,12 +53,9 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri -> target
 
-      - name: Install frontend dependencies
+      - name: Install dependencies
         run: npm ci
         working-directory: .
-
-      - name: Install desktop dependencies
-        run: npm install
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
