@@ -35,6 +35,7 @@ export async function startSession(project?: string | null) {
       paused_at: null,
       ended_at:  null,
       elapsed_seconds: 0,
+      paused_total_seconds: 0,
     })
     .select()
     .single();
@@ -57,12 +58,30 @@ export async function pauseSession(sessionId: string) {
   return { success: true };
 }
 
-/** Resume a paused tracking session. */
+/** Resume a paused tracking session. Folds the just-finished pause into paused_total_seconds. */
 export async function resumeSession(sessionId: string) {
   const supabase = await createClient();
+
+  const { data: session, error: getErr } = await supabase
+    .from("tracking_sessions")
+    .select("paused_at, paused_total_seconds, status")
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (getErr) return { error: getErr.message };
+  if (!session) return { error: "Session not found." };
+  if (session.status !== "paused") return { success: true };
+
+  const pausedDelta = session.paused_at
+    ? Math.floor((Date.now() - new Date(session.paused_at).getTime()) / 1000)
+    : 0;
+
   const { error } = await supabase
     .from("tracking_sessions")
-    .update({ status: "tracking", paused_at: null })
+    .update({
+      status: "tracking",
+      paused_at: null,
+      paused_total_seconds: (session.paused_total_seconds ?? 0) + pausedDelta,
+    })
     .eq("id", sessionId)
     .eq("status", "paused");
   if (error) return { error: error.message };
@@ -70,21 +89,31 @@ export async function resumeSession(sessionId: string) {
   return { success: true };
 }
 
-/** End the tracking session and record elapsed_seconds. */
+/** End the tracking session and record elapsed_seconds (excluding paused time). */
 export async function endSession(sessionId: string) {
   const supabase = await createClient();
 
   const { data: session, error: getErr } = await supabase
     .from("tracking_sessions")
-    .select("started_at, elapsed_seconds, status")
+    .select("started_at, status, paused_at, paused_total_seconds")
     .eq("id", sessionId)
     .maybeSingle();
   if (getErr) return { error: getErr.message };
   if (!session) return { error: "Session not found." };
   if (session.status === "ended") return { success: true };
 
-  const elapsed =
-    Math.floor((Date.now() - new Date(session.started_at).getTime()) / 1000);
+  // If ending while paused, fold the open pause into the running total first.
+  let pausedTotal = session.paused_total_seconds ?? 0;
+  if (session.status === "paused" && session.paused_at) {
+    pausedTotal += Math.floor(
+      (Date.now() - new Date(session.paused_at).getTime()) / 1000,
+    );
+  }
+
+  const totalSec = Math.floor(
+    (Date.now() - new Date(session.started_at).getTime()) / 1000,
+  );
+  const elapsed = Math.max(0, totalSec - pausedTotal);
 
   const { error } = await supabase
     .from("tracking_sessions")
@@ -92,6 +121,8 @@ export async function endSession(sessionId: string) {
       status: "ended",
       ended_at: new Date().toISOString(),
       elapsed_seconds: elapsed,
+      paused_total_seconds: pausedTotal,
+      paused_at: null,
     })
     .eq("id", sessionId);
   if (error) return { error: error.message };

@@ -32,6 +32,7 @@ export type TrackingSession = {
   paused_at: string | null
   ended_at: string | null
   elapsed_seconds: number
+  paused_total_seconds: number
   created_at: string
 }
 

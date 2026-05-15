@@ -190,7 +190,7 @@ export async function loadMyTodayStats(supabase: SB, memberId: string) {
       .gte("captured_at", todayIso),
     supabase
       .from("tracking_sessions")
-      .select("elapsed_seconds, started_at, ended_at")
+      .select("status, started_at, ended_at, elapsed_seconds, paused_at, paused_total_seconds")
       .eq("member_id", memberId)
       .gte("started_at", todayIso),
   ]);
@@ -203,11 +203,18 @@ export async function loadMyTodayStats(supabase: SB, memberId: string) {
 
   const seconds = (sessions ?? []).reduce((acc, s) => {
     if (s.ended_at) return acc + (s.elapsed_seconds ?? 0);
-    // For an in-progress session, estimate from started_at
-    const elapsed = Math.floor(
+
+    // In-progress: subtract paused intervals (closed + currently open).
+    let pausedTotal = s.paused_total_seconds ?? 0;
+    if (s.status === "paused" && s.paused_at) {
+      pausedTotal += Math.floor(
+        (Date.now() - new Date(s.paused_at).getTime()) / 1000,
+      );
+    }
+    const total = Math.floor(
       (Date.now() - new Date(s.started_at).getTime()) / 1000,
     );
-    return acc + elapsed;
+    return acc + Math.max(0, total - pausedTotal);
   }, 0);
 
   return { ...counts, seconds };

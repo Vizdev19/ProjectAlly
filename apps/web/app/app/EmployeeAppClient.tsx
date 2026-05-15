@@ -113,8 +113,16 @@ function TimerCard({
     return () => clearInterval(t);
   }, [status]);
 
+  // Freeze the timer at paused_at while paused; otherwise tick against `now`.
+  // Subtract paused_total_seconds so accumulated pauses don't count as tracked.
   const seconds = session
-    ? Math.max(0, Math.floor((now - new Date(session.started_at).getTime()) / 1000))
+    ? (() => {
+        const endRef = session.status === "paused" && session.paused_at
+          ? new Date(session.paused_at).getTime()
+          : now;
+        const total = Math.floor((endRef - new Date(session.started_at).getTime()) / 1000);
+        return Math.max(0, total - (session.paused_total_seconds ?? 0));
+      })()
     : 0;
 
   return (

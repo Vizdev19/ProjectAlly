@@ -11,6 +11,7 @@ type Session = {
   started_at: string;
   paused_at: string | null;
   ended_at:  string | null;
+  paused_total_seconds: number;
 };
 
 type RustStatus = {
@@ -42,7 +43,7 @@ export default function Tracker({
     setError(null);
     const { data, error: e } = await supabase
       .from("tracking_sessions")
-      .select("id, project, status, started_at, paused_at, ended_at")
+      .select("id, project, status, started_at, paused_at, ended_at, paused_total_seconds")
       .eq("member_id", member.id)
       .is("ended_at", null)
       .order("started_at", { ascending: false })
@@ -112,6 +113,15 @@ export default function Tracker({
 
   async function onStart() {
     await action(async () => {
+      // Defensive: close any orphaned non-ended sessions for this member so
+      // we never end up with two "active" rows (which breaks .maybeSingle()
+      // on the next reload).
+      await supabase
+        .from("tracking_sessions")
+        .update({ status: "ended", ended_at: new Date().toISOString() })
+        .eq("member_id", member.id)
+        .is("ended_at", null);
+
       const { error } = await supabase
         .from("tracking_sessions")
         .insert({
@@ -123,6 +133,7 @@ export default function Tracker({
           paused_at: null,
           ended_at:  null,
           elapsed_seconds: 0,
+          paused_total_seconds: 0,
         });
       return { error: error?.message };
     });
@@ -141,11 +152,19 @@ export default function Tracker({
 
   async function onResume() {
     if (!session) return;
+    const pausedDelta = session.paused_at
+      ? Math.floor((Date.now() - new Date(session.paused_at).getTime()) / 1000)
+      : 0;
     await action(async () => {
       const { error } = await supabase
         .from("tracking_sessions")
-        .update({ status: "tracking", paused_at: null })
-        .eq("id", session.id);
+        .update({
+          status: "tracking",
+          paused_at: null,
+          paused_total_seconds: (session.paused_total_seconds ?? 0) + pausedDelta,
+        })
+        .eq("id", session.id)
+        .eq("status", "paused");
       return { error: error?.message };
     });
   }
@@ -153,15 +172,24 @@ export default function Tracker({
   async function onEnd() {
     if (!session) return;
     await action(async () => {
-      const elapsed = Math.floor(
+      let pausedTotal = session.paused_total_seconds ?? 0;
+      if (session.status === "paused" && session.paused_at) {
+        pausedTotal += Math.floor(
+          (Date.now() - new Date(session.paused_at).getTime()) / 1000,
+        );
+      }
+      const totalSec = Math.floor(
         (Date.now() - new Date(session.started_at).getTime()) / 1000,
       );
+      const elapsed = Math.max(0, totalSec - pausedTotal);
       const { error } = await supabase
         .from("tracking_sessions")
         .update({
           status: "ended",
           ended_at: new Date().toISOString(),
           elapsed_seconds: elapsed,
+          paused_total_seconds: pausedTotal,
+          paused_at: null,
         })
         .eq("id", session.id);
       return { error: error?.message };
@@ -194,7 +222,14 @@ export default function Tracker({
   // ── Render ─────────────────────────────────────────────────────
 
   const elapsedSec = session
-    ? Math.max(0, Math.floor((now - new Date(session.started_at).getTime()) / 1000))
+    ? (() => {
+        // While paused, freeze the timer at the moment we paused.
+        const endRef = session.status === "paused" && session.paused_at
+          ? new Date(session.paused_at).getTime()
+          : now;
+        const total = Math.floor((endRef - new Date(session.started_at).getTime()) / 1000);
+        return Math.max(0, total - (session.paused_total_seconds ?? 0));
+      })()
     : 0;
   const status: "idle" | "tracking" | "paused" = session?.status === "tracking"
     ? "tracking"
