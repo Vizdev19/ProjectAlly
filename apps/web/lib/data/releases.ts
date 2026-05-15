@@ -14,7 +14,6 @@ export type ReleaseAsset = {
 export type LatestRelease = {
   tag:         string;
   publishedAt: string;
-  htmlUrl:     string;
   /** Apple Silicon (M-series) macOS .dmg */
   macArm:      ReleaseAsset | null;
   /** Intel macOS .dmg */
@@ -44,7 +43,6 @@ export async function getLatestRelease(): Promise<LatestRelease | null> {
     const data = (await res.json()) as {
       tag_name:     string;
       published_at: string;
-      html_url:     string;
       assets:       Array<{ name: string; browser_download_url: string; size: number }>;
     };
 
@@ -58,7 +56,6 @@ export async function getLatestRelease(): Promise<LatestRelease | null> {
     return {
       tag:         data.tag_name,
       publishedAt: data.published_at,
-      htmlUrl:     data.html_url,
       // Tauri's macOS bundles are either .dmg installers or .app.tar.gz
       // archives (the latter when DMG bundling is disabled to dodge CI flakes).
       // Match either, scoped to the right architecture.

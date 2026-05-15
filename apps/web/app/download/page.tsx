@@ -39,8 +39,7 @@ export default async function DownloadPage() {
               <DownloadButtons release={release} />
               <p style={{ marginTop: 22, textAlign: "center", fontSize: 12, color: "var(--muted)" }}>
                 Latest version <strong style={{ color: "var(--ink-2)" }}>{release.tag}</strong> ·
-                {" "}released {formatDate(release.publishedAt)} ·
-                {" "}<a href={release.htmlUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--g-magenta)" }}>see all files</a>
+                {" "}released {formatDate(release.publishedAt)}
               </p>
             </>
           ) : (
