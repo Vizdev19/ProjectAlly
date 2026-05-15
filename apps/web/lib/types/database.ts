@@ -35,6 +35,19 @@ export type TrackingSession = {
   created_at: string
 }
 
+export type Invite = {
+  id: string
+  org_id: string
+  email: string
+  role: Role
+  full_name: string | null
+  token: string
+  invited_by: string | null
+  expires_at: string
+  accepted_at: string | null
+  created_at: string
+}
+
 export type Screenshot = {
   id: string
   org_id: string
@@ -99,9 +112,40 @@ export type Database = {
         Update: Partial<Omit<Screenshot, 'id' | 'created_at'>>
         Relationships: []
       }
+      invites: {
+        Row: Invite
+        Insert: Omit<Invite, 'id' | 'token' | 'expires_at' | 'accepted_at' | 'created_at'> & {
+          token?: string
+          expires_at?: string
+          accepted_at?: string | null
+        }
+        Update: Partial<Omit<Invite, 'id' | 'created_at'>>
+        Relationships: []
+      }
     }
     Views: Record<never, never>
-    Functions: Record<never, never>
+    Functions: {
+      create_org_for_user: {
+        Args: { p_company_name: string; p_full_name?: string | null }
+        Returns: Member
+      }
+      create_invite: {
+        Args: { p_email: string; p_role?: string; p_full_name?: string | null }
+        Returns: Invite
+      }
+      revoke_invite: {
+        Args: { p_invite_id: string }
+        Returns: undefined
+      }
+      accept_invite: {
+        Args: { p_token: string }
+        Returns: Member
+      }
+      preview_invite: {
+        Args: { p_token: string }
+        Returns: { org_name: string; role: Role; email: string; expires_at: string }[]
+      }
+    }
     Enums: Record<never, never>
     CompositeTypes: Record<never, never>
   }

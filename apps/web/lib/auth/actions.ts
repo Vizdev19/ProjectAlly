@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { destinationForMember, safeNext } from "@/lib/auth/redirect";
 
 export async function signInWithEmail(formData: FormData) {
   const supabase = await createClient();
@@ -20,9 +21,10 @@ export async function signInWithEmail(formData: FormData) {
     .from("members")
     .select("role")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
-  redirect(member?.role === "admin" ? "/dashboard" : "/app");
+  const next = safeNext(formData.get("next") as string | null);
+  redirect(next ?? destinationForMember(member?.role));
 }
 
 export async function signUpWithEmail(formData: FormData) {
@@ -33,6 +35,12 @@ export async function signUpWithEmail(formData: FormData) {
   const fullName    = `${formData.get("first_name")} ${formData.get("last_name")}`.trim();
   const companyName = formData.get("company") as string;
   const teamSize    = formData.get("team_size") as string;
+  const inviteToken = formData.get("invite_token") as string | null;
+
+  // Server-side password policy
+  if (!password || password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
 
   const { error } = await supabase.auth.signUp({
     email,
@@ -40,11 +48,11 @@ export async function signUpWithEmail(formData: FormData) {
     options: {
       emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
       data: {
-        full_name:    fullName,
-        company_name: companyName,
-        team_size:    teamSize,
-        // new sign-ups are always org admins
-        role: "admin",
+        full_name: fullName,
+        team_size: teamSize,
+        // company_name only set when NOT joining via an invite — the auth
+        // trigger uses this to decide between new-org and invite paths
+        ...(inviteToken ? {} : { company_name: companyName }),
       },
     },
   });
@@ -73,4 +81,38 @@ export async function getOAuthUrl(provider: "google" | "azure") {
 
   if (error) return { error: error.message };
   return { url: data.url };
+}
+
+// ── Invite actions ──────────────────────────────────────────────
+
+export async function createInvite(formData: FormData) {
+  const supabase = await createClient();
+  const email    = formData.get("email") as string;
+  const role     = (formData.get("role") as string) || "employee";
+  const fullName = formData.get("full_name") as string | null;
+
+  const { data, error } = await supabase.rpc("create_invite", {
+    p_email:     email,
+    p_role:      role,
+    p_full_name: fullName || null,
+  });
+
+  if (error) return { error: error.message };
+  return { invite: data };
+}
+
+export async function revokeInvite(inviteId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("revoke_invite", { p_invite_id: inviteId });
+  if (error) return { error: error.message };
+  return { success: true };
+}
+
+export async function acceptInvite(token: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("accept_invite", { p_token: token });
+  if (error) return { error: error.message };
+  // data is the created member row; redirect based on role
+  const role = (data as { role?: string } | null)?.role;
+  return { role, member: data };
 }

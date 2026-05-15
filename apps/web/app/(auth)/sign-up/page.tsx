@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Suspense, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { signUpWithEmail, getOAuthUrl } from "@/lib/auth/actions";
 
 type Strength = "empty" | "weak" | "medium" | "strong";
@@ -22,6 +23,19 @@ const strengthColor: Record<Strength, string> = {
 };
 
 export default function SignUpPage() {
+  return (
+    <Suspense>
+      <SignUpContent />
+    </Suspense>
+  );
+}
+
+function SignUpContent() {
+  const searchParams = useSearchParams();
+  const inviteToken  = searchParams.get("invite");
+  const invitedEmail = searchParams.get("email");
+  const joiningOrg   = Boolean(inviteToken);
+
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [pilotMode, setPilotMode] = useState(false);
@@ -63,9 +77,15 @@ export default function SignUpPage() {
           </Link>
 
           <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: "-0.02em", marginBottom: 6 }}>
-            Start a <em className="font-serif" style={{ fontStyle: "italic" }}>pilot</em> with your team
+            {joiningOrg ? (
+              <>Accept your <em className="font-serif" style={{ fontStyle: "italic" }}>invite</em></>
+            ) : (
+              <>Start a <em className="font-serif" style={{ fontStyle: "italic" }}>pilot</em> with your team</>
+            )}
           </h1>
-          <p style={{ fontSize: 13.5, color: "var(--muted)", marginBottom: 24 }}>14-day free trial · no credit card needed</p>
+          <p style={{ fontSize: 13.5, color: "var(--muted)", marginBottom: 24 }}>
+            {joiningOrg ? "Create your account to join your team" : "14-day free trial · no credit card needed"}
+          </p>
 
           {error && (
             <div style={{ marginBottom: 18, padding: "12px 14px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid rgba(196,28,60,0.2)", fontSize: 13.5, color: "var(--danger)" }}>{error}</div>
@@ -94,9 +114,25 @@ export default function SignUpPage() {
             </div>
 
             <Field label="Work email">
-              <input name="email" type="email" required autoComplete="email" placeholder="you@company.com" style={inputStyle} />
-              <span style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>We&apos;ll use it for your workspace URL</span>
+              <input
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="you@company.com"
+                defaultValue={invitedEmail ?? undefined}
+                readOnly={joiningOrg}
+                style={{ ...inputStyle, ...(joiningOrg ? { background: "var(--surface-2)", color: "var(--muted)" } : {}) }}
+              />
+              {!joiningOrg && (
+                <span style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>
+                  We&apos;ll use it for your workspace URL
+                </span>
+              )}
             </Field>
+            {joiningOrg && inviteToken && (
+              <input type="hidden" name="invite_token" value={inviteToken} />
+            )}
 
             <Field label="Password">
               <div style={{ position: "relative" }}>
@@ -118,36 +154,42 @@ export default function SignUpPage() {
               )}
             </Field>
 
-            <Field label="Company name">
-              <input name="company" type="text" required autoComplete="organization" placeholder="Northwind Inc." style={inputStyle} />
-            </Field>
+            {!joiningOrg && (
+              <>
+                <Field label="Company name">
+                  <input name="company" type="text" required autoComplete="organization" placeholder="Northwind Inc." style={inputStyle} />
+                </Field>
 
-            <Field label="Team size">
-              <select name="team_size" required style={{ ...inputStyle, appearance: "none", cursor: "pointer" }}>
-                <option value="">Select team size…</option>
-                <option value="1-10">1–10 people</option>
-                <option value="11-50">11–50 people</option>
-                <option value="51-200">51–200 people</option>
-                <option value="201-1000">201–1,000 people</option>
-                <option value="1000+">1,000+ people</option>
-              </select>
-            </Field>
+                <Field label="Team size">
+                  <select name="team_size" required style={{ ...inputStyle, appearance: "none", cursor: "pointer" }}>
+                    <option value="">Select team size…</option>
+                    <option value="1-10">1–10 people</option>
+                    <option value="11-50">11–50 people</option>
+                    <option value="51-200">51–200 people</option>
+                    <option value="201-1000">201–1,000 people</option>
+                    <option value="1000+">1,000+ people</option>
+                  </select>
+                </Field>
 
-            {/* Pilot card */}
-            <label style={{ display: "flex", gap: 12, padding: "14px 16px", borderRadius: 12, border: `1.5px solid ${pilotMode ? "var(--g-magenta)" : "var(--line)"}`, background: pilotMode ? "rgba(178,84,232,0.05)" : "var(--surface)", cursor: "pointer", transition: "border-color .15s, background .15s" }}>
-              <input type="checkbox" name="pilot_mode" checked={pilotMode} onChange={e => setPilotMode(e.target.checked)} style={{ marginTop: 2, accentColor: "var(--g-magenta)", flexShrink: 0 }} />
-              <div>
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)" }}>
-                  Run this as a <em className="font-serif" style={{ fontStyle: "italic" }}>team pilot</em>
-                </div>
-                <div style={{ fontSize: 12, color: "var(--ink-2)", marginTop: 3, lineHeight: 1.5 }}>
-                  If less than 80% of your team votes to keep AllyTracker on day 30, we delete everything and refund the seats.
-                </div>
-              </div>
-            </label>
+                {/* Pilot card */}
+                <label style={{ display: "flex", gap: 12, padding: "14px 16px", borderRadius: 12, border: `1.5px solid ${pilotMode ? "var(--g-magenta)" : "var(--line)"}`, background: pilotMode ? "rgba(178,84,232,0.05)" : "var(--surface)", cursor: "pointer", transition: "border-color .15s, background .15s" }}>
+                  <input type="checkbox" name="pilot_mode" checked={pilotMode} onChange={e => setPilotMode(e.target.checked)} style={{ marginTop: 2, accentColor: "var(--g-magenta)", flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)" }}>
+                      Run this as a <em className="font-serif" style={{ fontStyle: "italic" }}>team pilot</em>
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--ink-2)", marginTop: 3, lineHeight: 1.5 }}>
+                      If less than 80% of your team votes to keep AllyTracker on day 30, we delete everything and refund the seats.
+                    </div>
+                  </div>
+                </label>
+              </>
+            )}
 
             <button type="submit" disabled={isPending} style={gradBtnStyle}>
-              {isPending ? "Creating workspace…" : "Create your workspace →"}
+              {isPending
+                ? (joiningOrg ? "Creating account…" : "Creating workspace…")
+                : (joiningOrg ? "Create my account →" : "Create your workspace →")}
             </button>
           </form>
 

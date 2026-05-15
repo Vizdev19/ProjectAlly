@@ -71,6 +71,7 @@ function SignInContent() {
           <Divider />
 
           <form onSubmit={handleEmail} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {next && <input type="hidden" name="next" value={next} />}
             <Field label="Work email">
               <input name="email" type="email" required autoComplete="email" placeholder="you@company.com" style={inputStyle} />
             </Field>

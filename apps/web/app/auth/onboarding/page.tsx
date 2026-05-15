@@ -5,10 +5,6 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-function slugify(name: string) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
-
 export default function OnboardingPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -18,35 +14,17 @@ export default function OnboardingPage() {
     e.preventDefault();
     setError(null);
     const fd = new FormData(e.currentTarget);
-    const companyName = fd.get("company") as string;
-    const fullName    = fd.get("full_name") as string;
+    const companyName = (fd.get("company") as string)?.trim();
+    const fullName    = (fd.get("full_name") as string)?.trim();
 
     startTransition(async () => {
       const supabase = createClient();
-      const { data: { user }, error: userErr } = await supabase.auth.getUser();
-      if (userErr || !user) { setError("Session expired. Please sign in again."); return; }
-
-      // Create organization
-      const slug = `${slugify(companyName)}-${Math.random().toString(36).slice(2, 6)}`;
-      const { data: org, error: orgErr } = await supabase
-        .from("organizations")
-        .insert({ name: companyName, slug, plan: "team" })
-        .select()
-        .single();
-
-      if (orgErr) { setError(orgErr.message); return; }
-
-      // Create member (admin)
-      const { error: memberErr } = await supabase.from("members").insert({
-        org_id:       org.id,
-        user_id:      user.id,
-        role:         "admin",
-        full_name:    fullName || user.user_metadata?.full_name || user.email!.split("@")[0],
-        email:        user.email!,
-        avatar_color: "#FF8A4C",
+      const { error: rpcErr } = await supabase.rpc("create_org_for_user", {
+        p_company_name: companyName,
+        p_full_name:    fullName || null,
       });
 
-      if (memberErr) { setError(memberErr.message); return; }
+      if (rpcErr) { setError(rpcErr.message); return; }
 
       router.push("/dashboard");
     });
