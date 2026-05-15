@@ -59,12 +59,19 @@ export async function getLatestRelease(): Promise<LatestRelease | null> {
       tag:         data.tag_name,
       publishedAt: data.published_at,
       htmlUrl:     data.html_url,
-      // Tauri's macOS bundle names look like "AllyTracker_0.1.0_aarch64.dmg"
-      // and "AllyTracker_0.1.0_x64.dmg" — match those flexibly.
-      macArm:      findFirst((n) => n.endsWith(".dmg") && (n.includes("aarch64") || n.includes("arm64"))),
-      macIntel:    findFirst((n) => n.endsWith(".dmg") && (n.includes("x64") || n.includes("x86_64") || n.includes("intel"))),
+      // Tauri's macOS bundles are either .dmg installers or .app.tar.gz
+      // archives (the latter when DMG bundling is disabled to dodge CI flakes).
+      // Match either, scoped to the right architecture.
+      macArm: findFirst((n) =>
+        (n.endsWith(".dmg") || n.endsWith(".app.tar.gz")) &&
+        (n.includes("aarch64") || n.includes("arm64")),
+      ),
+      macIntel: findFirst((n) =>
+        (n.endsWith(".dmg") || n.endsWith(".app.tar.gz")) &&
+        (n.includes("x64") || n.includes("x86_64") || n.includes("intel")),
+      ),
       // Prefer MSI over EXE
-      windows:     findFirst((n) => n.endsWith(".msi")) ?? findFirst((n) => n.endsWith(".exe")),
+      windows: findFirst((n) => n.endsWith(".msi")) ?? findFirst((n) => n.endsWith(".exe")),
       all,
     };
   } catch {

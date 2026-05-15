@@ -51,7 +51,7 @@ export default async function DownloadPage() {
           <div style={{ marginTop: 44, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <Note
               title="First-launch warning"
-              body="The app isn't code-signed yet. macOS will say 'cannot verify developer' — right-click the app and choose Open. Windows shows SmartScreen — click More info → Run anyway."
+              body="The app isn't code-signed yet. macOS will say 'cannot verify developer' — right-click the app and choose Open. On macOS, double-click the .tar.gz to extract, then drag AllyTracker.app into Applications. Windows shows SmartScreen — click More info → Run anyway."
             />
             <Note
               title="Permissions on macOS"
