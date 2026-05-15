@@ -78,8 +78,8 @@ jobs:
           releaseBody: |
             Download the installer for your platform below.
 
-            **macOS**: Download the `.dmg` file. Right-click → Open on first launch (no code signing yet).
+            **macOS**: Download the `.app.tar.gz` for your chip (aarch64 = Apple Silicon, x64 = Intel). Double-click to extract, drag `AllyTracker.app` into Applications. On first launch right-click → Open (the app isn't notarized yet).
             **Windows**: Download the `.msi` or `.exe` installer. Click "More info → Run anyway" if SmartScreen appears.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
