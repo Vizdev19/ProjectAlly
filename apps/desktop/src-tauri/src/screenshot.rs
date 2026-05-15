@@ -36,6 +36,16 @@ static QUEUE: once_cell::sync::Lazy<Mutex<VecDeque<PendingUpload>>> =
     once_cell::sync::Lazy::new(|| Mutex::new(VecDeque::new()));
 
 pub async fn capture_loop(app: AppHandle) {
+    // Pick up any PNGs left over from a previous run (crash, force-quit, etc.)
+    // so they don't sit forever in pending/. Then take a shot at flushing —
+    // it's a no-op when the queue is empty or auth isn't ready yet.
+    if let Err(e) = recover_pending(&app).await {
+        eprintln!("[screenshot] recover_pending: {e:#}");
+    }
+    if let Err(e) = flush_queue(&app).await {
+        eprintln!("[screenshot] flush_queue (startup): {e:#}");
+    }
+
     loop {
         tokio::time::sleep(tokio::time::Duration::from_secs(CAPTURE_INTERVAL_SECS)).await;
 
@@ -54,6 +64,62 @@ pub async fn capture_loop(app: AppHandle) {
             eprintln!("[screenshot] capture_and_upload: {e:#}");
         }
     }
+}
+
+/// Walk the pending dir and re-enqueue any orphaned PNGs from prior runs.
+/// Filename stem is the UUID; mtime is treated as captured_at (we write the
+/// file once right after capture, so mtime is within milliseconds of the
+/// true capture moment). Zero-byte files are skipped — almost certainly the
+/// result of a crash during write, and uploading them would just block the
+/// queue forever on the inevitable Supabase rejection.
+async fn recover_pending(app: &AppHandle) -> anyhow::Result<()> {
+    let data_dir = app.path().app_data_dir()?;
+    let dir = data_dir.join("screenshots").join("pending");
+    if !tokio::fs::try_exists(&dir).await.unwrap_or(false) {
+        return Ok(());
+    }
+
+    let mut entries = tokio::fs::read_dir(&dir).await
+        .with_context(|| format!("read_dir {:?}", dir))?;
+    let mut recovered = 0;
+    while let Some(entry) = entries.next_entry().await? {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("png") {
+            continue;
+        }
+        let Some(id) = path.file_stem().and_then(|s| s.to_str()).map(String::from) else {
+            continue;
+        };
+
+        let metadata = match entry.metadata().await {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("[screenshot] skip {:?}: metadata: {e:#}", path);
+                continue;
+            }
+        };
+        if metadata.len() == 0 {
+            eprintln!("[screenshot] skip {:?}: zero bytes (likely crash mid-write)", path);
+            continue;
+        }
+
+        let captured_at = metadata.modified()
+            .ok()
+            .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339())
+            .unwrap_or_else(|| Utc::now().to_rfc3339());
+
+        QUEUE.lock().expect("queue").push_back(PendingUpload {
+            id,
+            local_path: path,
+            captured_at,
+        });
+        recovered += 1;
+    }
+
+    if recovered > 0 {
+        eprintln!("[screenshot] recovered {recovered} pending upload(s) from disk");
+    }
+    Ok(())
 }
 
 /// Force a single capture+upload outside of the periodic loop. Useful for a
