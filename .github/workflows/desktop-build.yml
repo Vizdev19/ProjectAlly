@@ -6,6 +6,11 @@ on:
       - "v*"           # triggers on version tags: v0.1.0, v1.2.3, etc.
   workflow_dispatch:   # allows manual trigger from GitHub UI
 
+# Required so tauri-action can create the draft release via the GitHub API.
+# Default GITHUB_TOKEN permissions are read-only since 2023.
+permissions:
+  contents: write
+
 concurrency:
   group: desktop-${{ github.ref }}
   cancel-in-progress: true
