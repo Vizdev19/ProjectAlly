@@ -78,8 +78,11 @@ export async function removeScreenshot(screenshotId: string) {
   const { error: rmErr } = await supabase.storage
     .from("private-screenshots")
     .remove([shot.private_path]);
-  // Ignore rmErr if the file is already gone — proceed to mark the row
-  if (rmErr && !/not.*found/i.test(rmErr.message)) {
+  // A 404 from storage means the file is already gone — that's fine, we
+  // still want to mark the row removed. Anything else (auth, network,
+  // permission) is a real failure and should surface to the user.
+  const rmStatus = (rmErr as { statusCode?: string | number } | null)?.statusCode;
+  if (rmErr && String(rmStatus) !== "404") {
     return { error: rmErr.message };
   }
 
@@ -113,11 +116,16 @@ export async function approveAllPending() {
   if (!shots || shots.length === 0) return { success: true, count: 0 };
 
   let approved = 0;
+  const failures: { id: string; error: string }[] = [];
   for (const s of shots) {
     const r = await approveScreenshot(s.id);
-    if (!r.error) approved++;
+    if (r.error) {
+      failures.push({ id: s.id, error: r.error });
+    } else {
+      approved++;
+    }
   }
 
   revalidatePath("/app");
-  return { success: true, count: approved };
+  return { success: true, count: approved, failures };
 }

@@ -481,8 +481,17 @@ export default function EmployeeAppClient({ data }: { data: EmployeeAppData }) {
     setError(null);
     startTransition(async () => {
       const r = await approveAllPending();
-      if (r.error) showError(r.error);
-      else { setSelected(null); refresh(); }
+      if (r.error) {
+        showError(r.error);
+      } else {
+        // Surface partial failures — silently dropping them previously hid
+        // RLS / storage errors behind a "success" count.
+        if (r.failures && r.failures.length > 0) {
+          showError(`Approved ${r.count}, ${r.failures.length} failed: ${r.failures[0].error}`);
+        }
+        setSelected(null);
+        refresh();
+      }
     });
   }
 
