@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createInvite, revokeInvite } from "@/lib/auth/actions";
 
@@ -40,6 +40,14 @@ export default function TeamClient({
   const [success, setSuccess] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Track the "Copied!" timeout so unmounting (route change) doesn't fire
+  // setState on a torn-down component.
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   function handleInvite(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -78,7 +86,8 @@ export default function TeamClient({
   function copyLink(invite: Invite) {
     navigator.clipboard.writeText(inviteLink(invite.token));
     setCopiedId(invite.id);
-    setTimeout(() => setCopiedId(null), 1800);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopiedId(null), 1800);
   }
 
   return (
