@@ -89,7 +89,13 @@ pub fn run() {
             Some(vec!["--minimized"]),
         ))
         .setup(|app| {
-            tray::setup_tray(app)?;
+            if let Err(e) = tray::setup_tray(app) {
+                // Print to stderr so a failure here is diagnosable when the
+                // user runs the binary from Terminal — otherwise we just see
+                // SIGABRT in the macOS crash dialog with no clue what failed.
+                eprintln!("[setup] tray::setup_tray failed: {e:?}");
+                return Err(e.into());
+            }
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 screenshot::capture_loop(app_handle).await;
@@ -107,5 +113,10 @@ pub fn run() {
             capture_now,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running AllyTracker");
+        .unwrap_or_else(|e| {
+            // Print + clean exit instead of panic+abort, so future failures
+            // surface a readable error to anyone running from Terminal.
+            eprintln!("[fatal] AllyTracker failed to start: {e:?}");
+            std::process::exit(1);
+        });
 }
