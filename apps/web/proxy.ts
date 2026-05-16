@@ -64,6 +64,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/auth/onboarding", request.url));
   }
 
+  // Already-onboarded user landing on /auth/onboarding → bounce to their
+  // real destination. Otherwise they see the form, submit it, and
+  // create_org_for_user raises "already a member of an org" as a raw error.
+  if (member && pathname.startsWith("/auth/onboarding")) {
+    return NextResponse.redirect(new URL(destinationForMember(member.role), request.url));
+  }
+
   // Employee trying to access an admin-only route → bounce to /app
   if (isAdminOnly && member && member.role !== "admin") {
     return NextResponse.redirect(new URL("/app", request.url));
