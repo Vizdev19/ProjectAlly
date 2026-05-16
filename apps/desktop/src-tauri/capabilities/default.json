@@ -12,6 +12,11 @@
     "updater:default",
     "notification:default",
     "autostart:default",
-    "shell:allow-open"
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        { "url": "https://**" }
+      ]
+    }
   ]
 }
