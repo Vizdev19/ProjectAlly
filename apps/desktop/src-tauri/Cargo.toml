@@ -1,6 +1,6 @@
 [package]
 name = "ally-tracker-desktop"
-version = "0.1.9"
+version = "0.1.10"
 description = "AllyTracker Desktop Agent"
 authors = ["Vishnu Prasath"]
 edition = "2021"

@@ -57,6 +57,21 @@ jobs:
         run: npm ci
         working-directory: .
 
+      # Temporary diagnostic — confirms whether the NEXT_PUBLIC_* repository
+      # variables are actually reaching the workflow at build time. These are
+      # public values (anon key + project URL ship in the client bundle), so
+      # printing them in CI logs is fine. Remove once we've confirmed.
+      - name: Diagnose Vite env vars
+        shell: bash
+        env:
+          VAR_SUPABASE_URL:      ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          VAR_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          VAR_APP_URL:           ${{ vars.NEXT_PUBLIC_APP_URL }}
+        run: |
+          echo "NEXT_PUBLIC_SUPABASE_URL      length=${#VAR_SUPABASE_URL}   value=$VAR_SUPABASE_URL"
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY length=${#VAR_SUPABASE_ANON_KEY}"
+          echo "NEXT_PUBLIC_APP_URL           length=${#VAR_APP_URL}        value=$VAR_APP_URL"
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
