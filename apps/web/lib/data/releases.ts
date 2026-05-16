@@ -28,15 +28,20 @@ export type LatestRelease = {
  * Fetches the latest published release. Returns null if the repo has no
  * releases yet (which is what /download will show before the first tag ships).
  *
- * Cached for 5 min to avoid hammering GitHub's 60-req/hr unauthenticated rate
- * limit if the page gets hit a lot.
+ * Cached for 5 min to amortize calls. If GITHUB_API_TOKEN is set, requests are
+ * authenticated (5000 req/hr); otherwise unauthenticated (60 req/hr per IP,
+ * shared across Vercel tenants — easy to exhaust).
  */
 export async function getLatestRelease(): Promise<LatestRelease | null> {
   const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+  const headers: Record<string, string> = { Accept: "application/vnd.github+json" };
+  if (process.env.GITHUB_API_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_API_TOKEN}`;
+  }
   try {
     const res = await fetch(url, {
-      headers: { Accept: "application/vnd.github+json" },
-      next:    { revalidate: 300 },
+      headers,
+      next: { revalidate: 300 },
     });
     if (!res.ok) return null;
 
