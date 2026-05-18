@@ -2,7 +2,7 @@ use tauri::{
     App, Manager,
     image::Image,
     menu::{Menu, MenuItem},
-    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 
 pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
@@ -21,7 +21,25 @@ pub fn setup_tray(app: &mut App) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, .. } = event {
+            // Show the window on:
+            //   - Left-click release (single click — macOS / Linux convention)
+            //   - Left double-click (Windows convention)
+            // We match the Up state of Click rather than the press, so a
+            // single click doesn't fire show() twice (once on Down, once on
+            // Up). DoubleClick covers Windows users who expect that pattern;
+            // single-click on Windows still works for those who try it.
+            let should_show = matches!(
+                event,
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } | TrayIconEvent::DoubleClick {
+                    button: MouseButton::Left,
+                    ..
+                }
+            );
+            if should_show {
                 let app = tray.app_handle();
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
