@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import type { MemberStats, ApprovedShot } from "@/lib/data/dashboard";
+import DateRangeControls from "./_components/DateRangeControls";
 
 export type DashboardData = {
   me: { id: string; full_name: string; avatar_color: string };
@@ -176,101 +176,24 @@ function KPIStrip({ totals, totalMembers }: { totals: DashboardData["totals"]; t
   );
 }
 
-function Controls({
-  range,
-  search,
-  onSearchChange,
-}: {
-  range: { from: string; to: string };
-  search: string;
-  onSearchChange: (v: string) => void;
-}) {
-  const router = useRouter();
-  // Local controlled state for the date pickers so we can validate before pushing
-  // a new URL (avoids a re-render mid-keystroke as the user types into the input).
-  const [from, setFrom] = useState(range.from);
-  const [to, setTo] = useState(range.to);
-
-  function apply(nextFrom: string, nextTo: string) {
-    const params = new URLSearchParams();
-    params.set("from", nextFrom);
-    params.set("to", nextTo);
-    router.push(`/dashboard?${params.toString()}`);
-  }
-
-  function quickRange(daysBack: number) {
-    const now = new Date();
-    const start = new Date(now);
-    start.setUTCDate(start.getUTCDate() - daysBack);
-    const startYmd = start.toISOString().slice(0, 10);
-    const endYmd = now.toISOString().slice(0, 10);
-    setFrom(startYmd);
-    setTo(endYmd);
-    apply(startYmd, endYmd);
-  }
-
+function SearchInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 10, padding: "5px 10px" }}>
-        <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 500 }}>From</span>
-        <input
-          type="date"
-          value={from}
-          max={to}
-          onChange={(e) => {
-            setFrom(e.target.value);
-            if (e.target.value) apply(e.target.value, to);
-          }}
-          style={{ border: "none", background: "transparent", fontSize: 13, color: "var(--ink)", outline: "none", fontFamily: "inherit" }}
-        />
-        <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 4 }}>To</span>
-        <input
-          type="date"
-          value={to}
-          min={from}
-          onChange={(e) => {
-            setTo(e.target.value);
-            if (e.target.value) apply(from, e.target.value);
-          }}
-          style={{ border: "none", background: "transparent", fontSize: 13, color: "var(--ink)", outline: "none", fontFamily: "inherit" }}
-        />
-      </div>
-
-      <div style={{ display: "flex", gap: 4 }}>
-        {[
-          { label: "Today", days: 0 },
-          { label: "7d",    days: 6 },
-          { label: "30d",   days: 29 },
-        ].map((q) => (
-          <button
-            key={q.label}
-            onClick={() => quickRange(q.days)}
-            style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontSize: 12, fontWeight: 600, color: "var(--ink-2)", cursor: "pointer" }}
-          >
-            {q.label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ flex: 1 }} />
-
-      <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 10, padding: "6px 12px", minWidth: 240 }}>
-        <span style={{ fontSize: 13, color: "var(--muted)" }}>🔍</span>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Filter by name"
-          style={{ flex: 1, border: "none", background: "transparent", fontSize: 13, color: "var(--ink)", outline: "none", fontFamily: "inherit" }}
-        />
-        {search && (
-          <button
-            onClick={() => onSearchChange("")}
-            style={{ width: 18, height: 18, borderRadius: 9, border: "none", background: "var(--surface-2)", color: "var(--muted)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-            aria-label="Clear search"
-          >×</button>
-        )}
-      </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 10, padding: "6px 12px", minWidth: 240 }}>
+      <span style={{ fontSize: 13, color: "var(--muted)" }}>🔍</span>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Filter by name"
+        style={{ flex: 1, border: "none", background: "transparent", fontSize: 13, color: "var(--ink)", outline: "none", fontFamily: "inherit" }}
+      />
+      {value && (
+        <button
+          onClick={() => onChange("")}
+          style={{ width: 18, height: 18, borderRadius: 9, border: "none", background: "var(--surface-2)", color: "var(--muted)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          aria-label="Clear search"
+        >×</button>
+      )}
     </div>
   );
 }
@@ -336,7 +259,12 @@ function MemberStream({
         <Avatar initials={initialsOf(member.full_name)} color={member.avatar_color} size={32} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>{member.full_name}</p>
+            <Link
+              href={`/dashboard/members/${member.id}`}
+              style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", textDecoration: "none" }}
+            >
+              {member.full_name}
+            </Link>
             <StatusDot status={sessionStatus} />
             <span style={{ fontSize: 12, color: STATUS_COLOR[sessionStatus] ?? "var(--muted)", fontWeight: 600 }}>
               {sessionStatus === "tracking" ? "Tracking" : sessionStatus === "paused" ? "Paused" : "Not tracking"}
@@ -454,7 +382,11 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
             </div>
           </div>
 
-          <Controls range={data.range} search={search} onSearchChange={setSearch} />
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
+            <DateRangeControls range={data.range} basePath="/dashboard" />
+            <div style={{ flex: 1 }} />
+            <SearchInput value={search} onChange={setSearch} />
+          </div>
 
           <div style={{ marginBottom: 18 }}>
             <KPIStrip totals={data.totals} totalMembers={data.roster.length} />

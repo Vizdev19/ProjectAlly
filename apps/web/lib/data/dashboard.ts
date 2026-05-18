@@ -206,6 +206,95 @@ export async function loadApprovedShotsForMember(
   return signed;
 }
 
+/**
+ * One member's full session list within a date range, newest first. Used by
+ * the per-member drill-down page.
+ */
+export async function loadMemberSessions(
+  supabase: SB,
+  memberId: string,
+  range: DateRange,
+  limit = 100,
+): Promise<TrackingSession[]> {
+  const { data } = await supabase
+    .from("tracking_sessions")
+    .select("*")
+    .eq("member_id", memberId)
+    .gte("started_at", range.fromIso)
+    .lt("started_at", range.toIso)
+    .order("started_at", { ascending: false })
+    .limit(limit);
+  return data ?? [];
+}
+
+/**
+ * Returns total approved + removed counts for a single member in the range.
+ * Used by the per-member detail KPIs without dragging in the org-wide query.
+ */
+export async function loadMemberReviewCounts(
+  supabase: SB,
+  memberId: string,
+  range: DateRange,
+): Promise<{ approved: number; removed: number }> {
+  const { data } = await supabase
+    .from("screenshots")
+    .select("status")
+    .eq("member_id", memberId)
+    .in("status", ["approved", "removed"])
+    .gte("captured_at", range.fromIso)
+    .lt("captured_at", range.toIso);
+  const rows = data ?? [];
+  return {
+    approved: rows.filter((s) => s.status === "approved").length,
+    removed:  rows.filter((s) => s.status === "removed").length,
+  };
+}
+
+/**
+ * Compute total tracked seconds across a session list, excluding paused
+ * intervals (uses migration 004's paused_total_seconds). Mirrors the per-row
+ * logic in loadOrgRoster; extracted so the detail page can reuse it.
+ */
+export function totalTrackedSeconds(sessions: TrackingSession[]): number {
+  return sessions.reduce((acc, s) => {
+    if (s.ended_at) return acc + (s.elapsed_seconds ?? 0);
+    let pausedTotal = s.paused_total_seconds ?? 0;
+    if (s.status === "paused" && s.paused_at) {
+      pausedTotal += Math.floor((Date.now() - new Date(s.paused_at).getTime()) / 1000);
+    }
+    const total = Math.floor((Date.now() - new Date(s.started_at).getTime()) / 1000);
+    return acc + Math.max(0, total - pausedTotal);
+  }, 0);
+}
+
+export type ProjectBreakdown = {
+  project: string;
+  session_count: number;
+  hours_seconds: number;
+};
+
+/**
+ * Group a session list by `project` (null becomes "Untitled") and total the
+ * tracked time per group. Sorted by hours descending so the busiest project
+ * leads.
+ */
+export function projectBreakdown(sessions: TrackingSession[]): ProjectBreakdown[] {
+  const map = new Map<string, TrackingSession[]>();
+  for (const s of sessions) {
+    const key = s.project?.trim() || "Untitled";
+    const list = map.get(key) ?? [];
+    list.push(s);
+    map.set(key, list);
+  }
+  const out: ProjectBreakdown[] = [...map.entries()].map(([project, list]) => ({
+    project,
+    session_count:  list.length,
+    hours_seconds:  totalTrackedSeconds(list),
+  }));
+  out.sort((a, b) => b.hours_seconds - a.hours_seconds);
+  return out;
+}
+
 /** Active (non-ended) sessions for the org, joined with member info. */
 export async function loadActiveSessions(supabase: SB, orgId: string) {
   const { data } = await supabase
