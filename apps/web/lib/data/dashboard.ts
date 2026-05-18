@@ -19,6 +19,13 @@ export type MemberStats = Member & {
   removed: number;
   /** Total tracked time in seconds across all sessions started in the range, excluding paused intervals. */
   hours_seconds: number;
+  /**
+   * ISO timestamp of the most recent tracking session this member ever started,
+   * or null if they've never tracked. Independent of the date range — answers
+   * "is this person actually using the product?" even when they have zero
+   * activity in the selected window.
+   */
+  last_active_at: string | null;
 };
 
 export type ApprovedShot = Screenshot & {
@@ -83,6 +90,7 @@ export async function loadOrgRoster(
     { data: activeSessions },
     { data: rangeSessions },
     { data: shots },
+    { data: lastActiveRows },
   ] = await Promise.all([
     supabase
       .from("members")
@@ -107,9 +115,27 @@ export async function loadOrgRoster(
       .in("status", ["approved", "removed"])
       .gte("captured_at", range.fromIso)
       .lt("captured_at", range.toIso),
+    // "Last active" — most recent session per member, across all time. Sorted
+    // newest-first and deduped in JS. Sessions are far fewer than screenshots,
+    // so a wide order-by + JS dedupe is fine until the org gets large enough
+    // to warrant a stored `members.last_active_at` column updated by trigger.
+    supabase
+      .from("tracking_sessions")
+      .select("member_id, started_at")
+      .eq("org_id", orgId)
+      .order("started_at", { ascending: false }),
   ]);
 
   if (!members) return [];
+
+  // Build a memberId → most-recent started_at lookup once, instead of scanning
+  // the sorted array for each member.
+  const lastActiveByMember = new Map<string, string>();
+  for (const row of lastActiveRows ?? []) {
+    if (!lastActiveByMember.has(row.member_id)) {
+      lastActiveByMember.set(row.member_id, row.started_at);
+    }
+  }
 
   return members.map((m) => {
     const memberSessions = (rangeSessions ?? []).filter((s) => s.member_id === m.id);
@@ -139,6 +165,7 @@ export async function loadOrgRoster(
       approved:      memberShots.filter((s) => s.status === "approved").length,
       removed:       memberShots.filter((s) => s.status === "removed").length,
       hours_seconds,
+      last_active_at: lastActiveByMember.get(m.id) ?? null,
     };
   });
 }

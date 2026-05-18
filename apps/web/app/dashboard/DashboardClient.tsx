@@ -52,6 +52,33 @@ function formatRangeLabel(from: string, to: string): string {
   return `${fmt(from)} → ${fmt(to)}`;
 }
 
+/** Coarse "5m ago" / "3h ago" / "2d ago" / "Mar 14" formatting for last-active. */
+function formatRelative(iso: string | null): string {
+  if (!iso) return "Never tracked";
+  const then = new Date(iso).getTime();
+  const diffMs = Date.now() - then;
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return "Active now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 30) return `${diffDay}d ago`;
+  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+/**
+ * Share of reviewed screenshots the member kept (vs removed). Used as a trust
+ * signal — high % = the privacy review is mostly approving, low % = active
+ * engagement with the privacy controls. Returns null when nothing was
+ * reviewed in the range (so we can hide the badge instead of showing 0%).
+ */
+function approvalRate(approved: number, removed: number): number | null {
+  const total = approved + removed;
+  if (total === 0) return null;
+  return Math.round((approved / total) * 100);
+}
+
 function StatusDot({ status }: { status: string }) {
   return (
     <div style={{ position: "relative", width: 9, height: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -264,6 +291,34 @@ function ShotThumb({ shot, onClick }: { shot: ApprovedShot; onClick: () => void 
   );
 }
 
+function PrivacyBanner({ totals }: { totals: DashboardData["totals"] }) {
+  const total = totals.approved + totals.removed;
+  // Hide entirely when there's no review activity — empty-state copy would be
+  // condescending. The banner exists to reinforce the "consent-first" promise
+  // with real numbers, so it only shows when there are real numbers.
+  if (total === 0) return null;
+  const removedPct = Math.round((totals.removed / total) * 100);
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 12,
+      padding: "10px 14px", marginBottom: 18,
+      background: "rgba(91,108,255,0.06)",
+      border: "1px solid rgba(91,108,255,0.18)",
+      borderRadius: 10, fontSize: 13, color: "var(--ink-2)",
+    }}>
+      <span style={{ fontSize: 16 }}>🛡</span>
+      <span>
+        Your team has removed{" "}
+        <strong style={{ color: "var(--ink)", fontWeight: 700 }}>
+          {totals.removed} of {total}
+        </strong>{" "}
+        captures in this range ({removedPct}%) — the privacy promise working as
+        designed.
+      </span>
+    </div>
+  );
+}
+
 function MemberStream({
   member,
   shots,
@@ -274,19 +329,36 @@ function MemberStream({
   onSelectShot: (s: SelectedShot) => void;
 }) {
   const sessionStatus = member.active_session?.status ?? "ended";
+  const rate = approvalRate(member.approved, member.removed);
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
         <Avatar initials={initialsOf(member.full_name)} color={member.avatar_color} size={32} />
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>{member.full_name}</p>
             <StatusDot status={sessionStatus} />
             <span style={{ fontSize: 12, color: STATUS_COLOR[sessionStatus] ?? "var(--muted)", fontWeight: 600 }}>
               {sessionStatus === "tracking" ? "Tracking" : sessionStatus === "paused" ? "Paused" : "Not tracking"}
             </span>
+            {rate !== null && (
+              <span
+                title={`${member.approved} of ${member.approved + member.removed} reviewed captures kept`}
+                style={{
+                  fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 100,
+                  background: rate >= 80 ? "rgba(11,123,58,0.10)" : rate >= 50 ? "rgba(244,183,64,0.14)" : "rgba(196,28,60,0.10)",
+                  color:      rate >= 80 ? "var(--good)"           : rate >= 50 ? "#9a7300"                  : "var(--danger)",
+                }}
+              >
+                {rate}% kept
+              </span>
+            )}
           </div>
-          <p style={{ fontSize: 12, color: "var(--muted)" }}>{member.email}</p>
+          <p style={{ fontSize: 12, color: "var(--muted)" }}>
+            {member.email}
+            <span style={{ margin: "0 6px", color: "var(--line-2)" }}>·</span>
+            {formatRelative(member.last_active_at)}
+          </p>
         </div>
         <div style={{ display: "flex", gap: 16, fontSize: 12, alignItems: "center" }}>
           <span style={{ color: "var(--ink)", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
@@ -384,9 +456,11 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
 
           <Controls range={data.range} search={search} onSearchChange={setSearch} />
 
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 18 }}>
             <KPIStrip totals={data.totals} totalMembers={data.roster.length} />
           </div>
+
+          <PrivacyBanner totals={data.totals} />
 
           {data.roster.length === 0 ? (
             <div style={{ background: "var(--surface)", border: "1px dashed var(--line-2)", borderRadius: 14, padding: 40, textAlign: "center" }}>
