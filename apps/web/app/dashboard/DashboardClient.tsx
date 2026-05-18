@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Avatar from "@/components/ui/Avatar";
 import type { MemberStats, ApprovedShot } from "@/lib/data/dashboard";
+import { signOut } from "@/lib/auth/actions";
 import DateRangeControls from "./_components/DateRangeControls";
 import { useDashboardRealtime } from "./_components/useDashboardRealtime";
 
@@ -133,15 +134,108 @@ function Sidebar({ org, memberCount, me }: { org: DashboardData["org"]; memberCo
         ))}
       </nav>
 
-      <div style={{ padding: "12px 10px", borderTop: "1px solid var(--line)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 9 }}>
-          <Avatar initials={initialsOf(me.full_name)} color={me.avatar_color} size={26} />
-          <span style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-2)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {me.full_name}
-          </span>
-        </div>
-      </div>
+      <ProfileMenu me={me} />
     </aside>
+  );
+}
+
+function ProfileMenu({ me }: { me: DashboardData["me"] }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Click outside (or Escape) closes the menu. Listener only attached while
+  // open so we don't add work on every click when it's idle.
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative", padding: "12px 10px", borderTop: "1px solid var(--line)" }}>
+      {open && (
+        <div
+          role="menu"
+          style={{
+            position: "absolute",
+            bottom: "calc(100% - 6px)",
+            left: 10,
+            right: 10,
+            background: "var(--bg)",
+            border: "1px solid var(--line)",
+            borderRadius: 10,
+            padding: 4,
+            boxShadow: "0 8px 24px -6px rgba(26,20,36,0.15)",
+            zIndex: 10,
+          }}
+        >
+          <form action={signOut}>
+            <button
+              type="submit"
+              role="menuitem"
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 10px",
+                borderRadius: 7,
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+                color: "var(--danger)",
+                textAlign: "left",
+                fontFamily: "inherit",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              <span aria-hidden style={{ fontSize: 14 }}>↩</span>
+              <span>Sign out</span>
+            </button>
+          </form>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "8px 10px",
+          borderRadius: 9,
+          background: open ? "var(--surface-2)" : "transparent",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        <Avatar initials={initialsOf(me.full_name)} color={me.avatar_color} size={26} />
+        <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "var(--ink-2)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" }}>
+          {me.full_name}
+        </span>
+        <span aria-hidden style={{ fontSize: 11, color: "var(--muted)" }}>{open ? "▾" : "⋯"}</span>
+      </button>
+    </div>
   );
 }
 
