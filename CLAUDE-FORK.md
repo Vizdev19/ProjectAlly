@@ -165,7 +165,7 @@ with the new project's values.
 You can't do these — the user must, but warn them before you make code changes
 that depend on them existing.
 
-### 4a — Supabase
+### 4a — Supabase project + migrations
 
 1. Create a new Supabase project.
 2. Run all four migrations in order against the new database:
@@ -176,9 +176,54 @@ that depend on them existing.
    (Or paste them into the SQL editor.)
 3. Verify storage buckets `private-screenshots` and `submitted-screenshots`
    were created (migration 001 inserts them).
-4. Grab the project URL + anon key from Settings → API.
+4. Verify the security-definer helpers exist: `auth_member()`,
+   `auth_org_id()`, `auth_is_admin()`. RLS policies depend on them.
+5. Verify the realtime publication has both tables — the dashboard's live
+   updates need them:
+   ```sql
+   select pubname, tablename from pg_publication_tables
+   where pubname = 'supabase_realtime';
+   -- expect rows for tracking_sessions and screenshots
+   ```
+6. Grab the project URL + anon key from Settings → API.
 
-### 4b — GitHub repo configuration
+### 4b — Supabase Auth URL configuration (CRITICAL — easy to miss)
+
+The web app uses `emailRedirectTo: ${NEXT_PUBLIC_APP_URL}/auth/callback` for
+sign-up confirmation emails and the same URL for OAuth redirects. If the new
+Supabase project doesn't know about the new Vercel URL, **every email
+confirmation link redirects to localhost and every OAuth flow fails with
+`redirect_uri_mismatch`**.
+
+Supabase dashboard → Authentication → URL Configuration:
+
+| Field | Value |
+|---|---|
+| Site URL | `https://<your-app>.vercel.app` (the new Vercel production URL) |
+| Redirect URLs | Add `https://<your-app>.vercel.app/auth/callback` AND `http://localhost:3000/auth/callback` (for local dev) |
+
+If you skip this, sign-up appears to work locally but breaks in production
+the first time a user clicks a confirmation email.
+
+### 4c — Supabase OAuth providers (optional, but the UI shows the buttons)
+
+The sign-in and sign-up pages render Google and Microsoft (Azure) SSO buttons
+unconditionally — `apps/web/app/(auth)/sign-in/page.tsx` and the matching
+sign-up page. If the providers aren't configured in Supabase, clicking the
+button surfaces a vague error and the user is stuck.
+
+Two options:
+
+**A. Configure the providers** — Supabase dashboard → Authentication →
+Providers → enable Google + Azure. Each needs:
+- A Google Cloud / Azure AD app registration on your account
+- Client ID + Client Secret pasted into Supabase
+- Authorized redirect URI on the provider side: `https://<supabase-project-ref>.supabase.co/auth/v1/callback`
+
+**B. Hide the buttons** — if you don't want SSO, remove the `<SSOButton>`
+blocks from both pages. Don't leave them as dead UI.
+
+### 4d — GitHub repo configuration
 
 **Repository Variables** (Settings → Secrets and variables → Actions → Variables):
 
@@ -186,7 +231,7 @@ that depend on them existing.
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | From Section 4a |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | From Section 4a |
-| `NEXT_PUBLIC_APP_URL` | New Vercel production URL (Section 4c) |
+| `NEXT_PUBLIC_APP_URL` | New Vercel production URL (Section 4e) |
 
 **Repository Secrets** (same screen, Secrets tab):
 
@@ -199,16 +244,34 @@ Heads up: the workflow reads `NEXT_PUBLIC_*` from **`vars.`** not `secrets.`
 ([desktop-build.yml](.github/workflows/desktop-build.yml) explicitly uses
 `${{ vars.X }}`). It's easy to put values in the wrong store.
 
-### 4c — Vercel
+### 4e — Vercel
 
 1. Import the new GitHub repo.
 2. Root directory: `.` (the monorepo root). `vercel.json` already tells Vercel
    to install from the root and build from `apps/web`.
 3. Set the same `NEXT_PUBLIC_*` env vars in the Vercel dashboard (Settings →
    Environment Variables). Optionally `RESEND_API_KEY` and `GITHUB_API_TOKEN`.
-4. Deploy. The URL becomes the new `NEXT_PUBLIC_APP_URL`.
+4. Deploy. The URL becomes the new `NEXT_PUBLIC_APP_URL` — go back to
+   Section 4b and add it to Supabase Auth's Site URL + Redirect URLs.
 
-### 4d — Optional: Apple / Windows code signing
+### 4f — Resend (invite emails)
+
+The `createInvite` flow sends an email via Resend. Without an API key, the
+invite is still created and the admin can copy the link manually from the
+team page, but no email goes out. To wire it up:
+
+1. Sign up at [resend.com](https://resend.com), grab an API key.
+2. Set `RESEND_API_KEY` in Vercel env vars.
+3. Optionally set `RESEND_FROM`. Default is `AllyTracker <onboarding@resend.dev>`
+   — **change this** to your product name + a verified sending domain
+   (e.g. `Acme Tracker <invites@acmetracker.com>`). Sending from
+   `@resend.dev` works for testing but recipients see "via resend.dev" and
+   inboxes treat it as suspicious at scale.
+4. Update the invite email subject + body if needed:
+   `apps/web/lib/email/templates/invite.ts`. The default mentions
+   "AllyTracker"; brand it for the new product.
+
+### 4g — Optional: Apple / Windows code signing
 
 If the new project plans to ship the desktop app to non-technical users,
 unsigned macOS apps trigger Gatekeeper's misleading "damaged" message and
@@ -265,6 +328,98 @@ signal.
 
 ---
 
+## Section 6 — How releases work once the fork is set up
+
+The release pipeline (`.github/workflows/desktop-build.yml`) uses
+`${{ github }}` context variables, so it auto-targets whichever repo it runs
+in. Nothing in the workflow needs editing for the fork — Sections 1–4 above
+are enough.
+
+### The flow, end to end
+
+1. **Bump version** in all four files (this thread had a v0.1.3 incident
+   from forgetting one):
+   - `apps/desktop/package.json`
+   - `apps/desktop/src-tauri/Cargo.toml`
+   - `apps/desktop/src-tauri/tauri.conf.json`
+   - `apps/desktop/src-tauri/Cargo.lock` (the `[[package]] name = "<crate>"` block)
+2. **Commit + push** to `main`.
+3. **Tag and push the tag:**
+   ```bash
+   git tag v0.1.X
+   git push origin v0.1.X
+   ```
+4. ~5–8 minutes later, GitHub Actions has published a release containing
+   `.app.tar.gz` (macOS arm + x64), `.msi` + `.exe` (Windows), matching `.sig`
+   files for each, and a `latest.json` manifest.
+
+### First release vs everything after
+
+| | First release (v0.1.0) | Every later release |
+|---|---|---|
+| How users get it | Manually from the `/download` page | Auto-update prompt on app launch |
+| macOS Gatekeeper | Requires `xattr -dr com.apple.quarantine` on first install | Bypassed — auto-update fetches in-process, no Chrome quarantine flag |
+| Windows SmartScreen | "More info → Run anyway" | Bypassed for the same reason |
+| Signature verification | None (this *is* the trust anchor) | Verified against the pubkey embedded at install time |
+
+### The one rule that cannot be broken
+
+**The Tauri signing keypair must stay stable across every release of the
+same product.** The pubkey baked into v0.1.0 installs is what those installs
+use to verify every future update. If the key is regenerated mid-life:
+
+- Every previously-installed copy will silently refuse updates (signature
+  mismatch) and stay stuck on whatever version they had
+- There is no recovery path without each user manually reinstalling
+
+If a key ever needs to be rotated: stash the old key, generate the new one,
+ship a transition release built with the OLD key that swaps in the new
+pubkey (so existing installs accept it), then switch to signing with the new
+key. In practice nobody does this — back up the key file the moment you
+generate it.
+
+### Verifying a release actually shipped correctly
+
+```bash
+curl -sL https://api.github.com/repos/<owner>/<repo>/releases/latest \
+  | python3 -c "import json,sys; r=json.load(sys.stdin); \
+print('tag:', r['tag_name']); print('draft:', r['draft']); \
+[print(' -', a['name']) for a in r['assets']]"
+```
+
+Healthy output includes **one `.sig` file per artifact** plus a `latest.json`.
+If `latest.json` is missing, signing silently failed during the build — the
+diagnostic step pattern from this thread is:
+
+```yaml
+- name: Diagnose signing secrets
+  env:
+    TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  run: echo "key length=${#TAURI_SIGNING_PRIVATE_KEY}"
+```
+
+A length of 0 means the secret isn't reaching the workflow (check spelling
+in the secret name). A length matching the raw key file but no signing in
+the logs usually means newline mangling — base64-encode the key file
+(`base64 -i ~/.tauri/key.key | pbcopy`) and re-paste.
+
+### Common first-release mistakes
+
+- **Filename version drift**: tag is `v0.1.0` but artifacts show `_0.0.1_`
+  because someone forgot to update one of the four version files. Tauri uses
+  `tauri.conf.json`'s `version` for filenames; Git uses the tag. They must
+  match.
+- **Pubkey not yet set when tagging**: the workflow builds and signs, but
+  the updater plugin loads with an empty pubkey at install time, so every
+  later release will fail verification on these installs. Always paste the
+  pubkey into `tauri.conf.json` before the first tag push.
+- **Releasing as a draft**: `releaseDraft: false` is set in the workflow.
+  If someone flips it to `true`, the GitHub Releases redirect for
+  `/releases/latest/download/latest.json` will skip drafts → updater
+  endpoint returns 404 → no auto-update for anyone.
+
+---
+
 ## What does NOT need to change
 
 For reassurance — these are stable across forks:
@@ -275,10 +430,17 @@ For reassurance — these are stable across forks:
   variables that automatically reflect the current repo. Don't hand-edit URLs.
 - **Tauri plugin set** — updater, notification, shell, autostart, process. All
   generic.
-- **App architecture** — proxy.ts routing, server/client split, RLS model.
+- **App architecture** — `proxy.ts` routing, server/client split, RLS model.
   Read `CLAUDE.md` and `README.md` for these.
+- **`apps/web/CLAUDE.md` and `apps/web/AGENTS.md`** — the Next.js 16 warning
+  ("This is NOT the Next.js you know" → read the bundled docs). **Preserve
+  these on fork.** Future AI agents hitting the new repo need that hint or
+  they'll happily try to rename `proxy.ts` to `middleware.ts` and break
+  routing.
 - **Migration 004**'s `paused_total_seconds` column and the elapsed-time logic
   that depends on it.
+- **`apps/desktop/src/updater.ts`** — the `import.meta.env.DEV` skip makes
+  `tauri dev` not nag for updates. Works on any repo.
 - **Git commit conventions** — but update the git identity to the new
   project's owner.
 
@@ -288,13 +450,16 @@ For reassurance — these are stable across forks:
 
 The codebase has three layers of "old-project-ness":
 
-1. **Functional references** (Section 2a, 2b, 3a) — break things if not changed.
-   Updater hits wrong endpoint, bundle identifier collides, signature
-   verification fails. **Fix these first.**
-2. **Cosmetic references** (Section 2c, 2d, 2e) — work technically but show
+1. **Functional references** (Sections 2a, 2b, 3a, 4b) — break things if
+   not changed. Updater hits wrong endpoint, bundle identifier collides,
+   signature verification fails, OAuth redirects to wrong URL.
+   **Fix these first.**
+2. **Cosmetic references** (Sections 2c, 2d, 2e) — work technically but show
    the wrong brand. Fix in a second pass.
 3. **External state** (Section 4) — not in the code at all. Surface to the
    user as prerequisites; don't assume.
 
-If you only have time for one section: it's 2a + 2b + 3a + 4b (signing keys).
-That's the minimum to ship a working signed release from the new repo.
+Minimum viable fork to ship a working signed release:
+**2a + 2b + 3a + 4a + 4b + 4d + Section 6**. That gets you a fork that builds,
+signs, releases, and serves auth correctly. Everything else is brand polish or
+optional features (OAuth, custom email).
