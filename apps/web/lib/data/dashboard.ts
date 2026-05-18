@@ -3,32 +3,87 @@ import type { Database, Member, TrackingSession, Screenshot } from "@/lib/types/
 
 type SB = SupabaseClient<Database>;
 
+export type DateRange = {
+  /** ISO timestamp at 00:00 UTC of the first day in the range (inclusive). */
+  fromIso: string;
+  /** ISO timestamp at 00:00 UTC of the day AFTER the last day (exclusive). */
+  toIso: string;
+  /** The original from/to YYYY-MM-DD strings echoed back, for the UI to pin its date picker. */
+  from: string;
+  to: string;
+};
+
 export type MemberStats = Member & {
   active_session: TrackingSession | null;
-  today_approved: number;
-  today_removed: number;
+  approved: number;
+  removed: number;
+  /** Total tracked time in seconds across all sessions started in the range, excluding paused intervals. */
+  hours_seconds: number;
 };
 
 export type ApprovedShot = Screenshot & {
   signed_url: string | null;
 };
 
-/** Start of "today" in ISO 8601 (server-side date, UTC). */
+/** Start of "today" in UTC, as YYYY-MM-DD. */
+function todayYmd(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Strict YYYY-MM-DD validator so bad query strings can't poison the date math. */
+function isYmd(s: unknown): s is string {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+/** Start of "today" in UTC, as an ISO timestamp. Used by the employee-side
+ * (/app) loaders which haven't been generalized to date ranges yet. */
 function startOfTodayIso(): string {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
+  return `${todayYmd()}T00:00:00.000Z`;
 }
 
 /**
- * Returns all members in the org, each annotated with their active tracking
- * session (if any) and today's approved/removed counts.
- * Three parallel queries stitched in JS — no joins, no N+1.
+ * Resolve the `?from=` and `?to=` URL params (both YYYY-MM-DD, inclusive) into
+ * the ISO timestamps the queries need. Missing/invalid input defaults the range
+ * to today.
  */
-export async function loadOrgRoster(supabase: SB, orgId: string): Promise<MemberStats[]> {
-  const todayIso = startOfTodayIso();
+export function parseRange(from: string | undefined, to: string | undefined): DateRange {
+  const safeFrom = isYmd(from) ? from : todayYmd();
+  const safeTo   = isYmd(to)   ? to   : safeFrom;
 
-  const [{ data: members }, { data: sessions }, { data: shots }] = await Promise.all([
+  // If the user inverted them (to < from), swap.
+  const [lo, hi] = safeFrom <= safeTo ? [safeFrom, safeTo] : [safeTo, safeFrom];
+
+  // toIso is the start of the day AFTER `hi`, so range filters can use `< toIso`.
+  const hiDate = new Date(`${hi}T00:00:00.000Z`);
+  hiDate.setUTCDate(hiDate.getUTCDate() + 1);
+
+  return {
+    fromIso: `${lo}T00:00:00.000Z`,
+    toIso:   hiDate.toISOString(),
+    from:    lo,
+    to:      hi,
+  };
+}
+
+/**
+ * Returns all members in the org, each annotated with:
+ *   - active_session: their currently-open tracking session (always "now", not range-scoped)
+ *   - approved / removed: screenshot counts within the date range
+ *   - hours_seconds: total tracked time in the range, excluding paused intervals
+ *
+ * Four parallel queries stitched in JS — no joins, no N+1.
+ */
+export async function loadOrgRoster(
+  supabase: SB,
+  orgId: string,
+  range: DateRange,
+): Promise<MemberStats[]> {
+  const [
+    { data: members },
+    { data: activeSessions },
+    { data: rangeSessions },
+    { data: shots },
+  ] = await Promise.all([
     supabase
       .from("members")
       .select("*")
@@ -40,46 +95,71 @@ export async function loadOrgRoster(supabase: SB, orgId: string): Promise<Member
       .eq("org_id", orgId)
       .is("ended_at", null),
     supabase
+      .from("tracking_sessions")
+      .select("member_id, status, started_at, ended_at, elapsed_seconds, paused_at, paused_total_seconds")
+      .eq("org_id", orgId)
+      .gte("started_at", range.fromIso)
+      .lt("started_at", range.toIso),
+    supabase
       .from("screenshots")
       .select("member_id, status, captured_at")
       .eq("org_id", orgId)
       .in("status", ["approved", "removed"])
-      .gte("captured_at", todayIso),
+      .gte("captured_at", range.fromIso)
+      .lt("captured_at", range.toIso),
   ]);
 
   if (!members) return [];
 
   return members.map((m) => {
-    const session =
-      sessions?.find((s) => s.member_id === m.id) ?? null;
-    const todayShots = (shots ?? []).filter((s) => s.member_id === m.id);
+    const memberSessions = (rangeSessions ?? []).filter((s) => s.member_id === m.id);
+    const memberShots    = (shots ?? []).filter((s) => s.member_id === m.id);
+
+    const hours_seconds = memberSessions.reduce((acc, s) => {
+      // For ended sessions, trust the stored elapsed_seconds (already excludes pauses).
+      if (s.ended_at) return acc + (s.elapsed_seconds ?? 0);
+
+      // For in-progress sessions, derive current elapsed minus paused total
+      // (plus the open pause if currently paused).
+      let pausedTotal = s.paused_total_seconds ?? 0;
+      if (s.status === "paused" && s.paused_at) {
+        pausedTotal += Math.floor(
+          (Date.now() - new Date(s.paused_at).getTime()) / 1000,
+        );
+      }
+      const total = Math.floor(
+        (Date.now() - new Date(s.started_at).getTime()) / 1000,
+      );
+      return acc + Math.max(0, total - pausedTotal);
+    }, 0);
+
     return {
       ...m,
-      active_session: session,
-      today_approved: todayShots.filter((s) => s.status === "approved").length,
-      today_removed: todayShots.filter((s) => s.status === "removed").length,
+      active_session: activeSessions?.find((s) => s.member_id === m.id) ?? null,
+      approved:      memberShots.filter((s) => s.status === "approved").length,
+      removed:       memberShots.filter((s) => s.status === "removed").length,
+      hours_seconds,
     };
   });
 }
 
 /**
- * Latest N approved screenshots for a given member, with signed URLs.
- * Returns an empty array if there are none (which is currently always true
- * until the desktop upload pipeline lands).
+ * Latest N approved screenshots for a given member within a date range, with
+ * signed URLs.
  */
 export async function loadApprovedShotsForMember(
   supabase: SB,
   memberId: string,
+  range: DateRange,
   limit = 5,
 ): Promise<ApprovedShot[]> {
-  const todayIso = startOfTodayIso();
-
   const { data: shots } = await supabase
     .from("screenshots")
     .select("*")
     .eq("member_id", memberId)
     .eq("status", "approved")
-    .gte("captured_at", todayIso)
+    .gte("captured_at", range.fromIso)
+    .lt("captured_at", range.toIso)
     .order("captured_at", { ascending: false })
     .limit(limit);
 

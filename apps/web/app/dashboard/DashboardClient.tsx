@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import type { MemberStats, ApprovedShot } from "@/lib/data/dashboard";
 
 export type DashboardData = {
   me: { id: string; full_name: string; avatar_color: string };
   org: { id: string; name: string; slug: string; plan: string };
+  range: { from: string; to: string };
   roster: MemberStats[];
   shotsByMember: Record<string, ApprovedShot[]>;
-  totals: { approved: number; removed: number; tracking: number };
+  totals: { approved: number; removed: number; tracking: number; hours_seconds: number };
 };
 
 type SelectedShot = ApprovedShot & { member: MemberStats };
@@ -28,6 +30,26 @@ function initialsOf(name: string) {
 function timeOfDay(iso: string) {
   const d = new Date(iso);
   return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+/** "3h 25m" / "47m" / "0m" — compact tracked-time formatting. */
+function formatHours(totalSeconds: number): string {
+  if (totalSeconds <= 0) return "0m";
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+/** "May 17" or "May 17 → May 23" depending on whether the range is one day. */
+function formatRangeLabel(from: string, to: string): string {
+  const fmt = (ymd: string) =>
+    new Date(`${ymd}T00:00:00.000Z`).toLocaleDateString([], {
+      month: "short", day: "numeric", timeZone: "UTC",
+    });
+  if (from === to) return fmt(from);
+  return `${fmt(from)} → ${fmt(to)}`;
 }
 
 function StatusDot({ status }: { status: string }) {
@@ -110,8 +132,9 @@ function Topbar({ me }: { me: DashboardData["me"] }) {
 
 function KPIStrip({ totals, totalMembers }: { totals: DashboardData["totals"]; totalMembers: number }) {
   const kpis = [
-    { label: "Approved today",    value: totals.approved.toString() },
-    { label: "Removed today",     value: totals.removed.toString() },
+    { label: "Hours tracked",     value: formatHours(totals.hours_seconds) },
+    { label: "Approved",          value: totals.approved.toString() },
+    { label: "Removed",           value: totals.removed.toString() },
     { label: "Tracking now",      value: `${totals.tracking} of ${totalMembers}` },
   ];
   return (
@@ -122,6 +145,105 @@ function KPIStrip({ totals, totalMembers }: { totals: DashboardData["totals"]; t
           <span style={{ fontSize: 24, fontWeight: 800, color: "var(--ink)" }}>{k.value}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function Controls({
+  range,
+  search,
+  onSearchChange,
+}: {
+  range: { from: string; to: string };
+  search: string;
+  onSearchChange: (v: string) => void;
+}) {
+  const router = useRouter();
+  // Local controlled state for the date pickers so we can validate before pushing
+  // a new URL (avoids a re-render mid-keystroke as the user types into the input).
+  const [from, setFrom] = useState(range.from);
+  const [to, setTo] = useState(range.to);
+
+  function apply(nextFrom: string, nextTo: string) {
+    const params = new URLSearchParams();
+    params.set("from", nextFrom);
+    params.set("to", nextTo);
+    router.push(`/dashboard?${params.toString()}`);
+  }
+
+  function quickRange(daysBack: number) {
+    const now = new Date();
+    const start = new Date(now);
+    start.setUTCDate(start.getUTCDate() - daysBack);
+    const startYmd = start.toISOString().slice(0, 10);
+    const endYmd = now.toISOString().slice(0, 10);
+    setFrom(startYmd);
+    setTo(endYmd);
+    apply(startYmd, endYmd);
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 10, padding: "5px 10px" }}>
+        <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 500 }}>From</span>
+        <input
+          type="date"
+          value={from}
+          max={to}
+          onChange={(e) => {
+            setFrom(e.target.value);
+            if (e.target.value) apply(e.target.value, to);
+          }}
+          style={{ border: "none", background: "transparent", fontSize: 13, color: "var(--ink)", outline: "none", fontFamily: "inherit" }}
+        />
+        <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 4 }}>To</span>
+        <input
+          type="date"
+          value={to}
+          min={from}
+          onChange={(e) => {
+            setTo(e.target.value);
+            if (e.target.value) apply(from, e.target.value);
+          }}
+          style={{ border: "none", background: "transparent", fontSize: 13, color: "var(--ink)", outline: "none", fontFamily: "inherit" }}
+        />
+      </div>
+
+      <div style={{ display: "flex", gap: 4 }}>
+        {[
+          { label: "Today", days: 0 },
+          { label: "7d",    days: 6 },
+          { label: "30d",   days: 29 },
+        ].map((q) => (
+          <button
+            key={q.label}
+            onClick={() => quickRange(q.days)}
+            style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontSize: 12, fontWeight: 600, color: "var(--ink-2)", cursor: "pointer" }}
+          >
+            {q.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ flex: 1 }} />
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 10, padding: "6px 12px", minWidth: 240 }}>
+        <span style={{ fontSize: 13, color: "var(--muted)" }}>🔍</span>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Filter by name"
+          style={{ flex: 1, border: "none", background: "transparent", fontSize: 13, color: "var(--ink)", outline: "none", fontFamily: "inherit" }}
+        />
+        {search && (
+          <button
+            onClick={() => onSearchChange("")}
+            style={{ width: 18, height: 18, borderRadius: 9, border: "none", background: "var(--surface-2)", color: "var(--muted)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            aria-label="Clear search"
+          >×</button>
+        )}
+      </div>
     </div>
   );
 }
@@ -166,14 +288,17 @@ function MemberStream({
           </div>
           <p style={{ fontSize: 12, color: "var(--muted)" }}>{member.email}</p>
         </div>
-        <div style={{ display: "flex", gap: 16, fontSize: 12 }}>
-          <span style={{ color: "var(--good)", fontWeight: 600 }}>{member.today_approved} approved</span>
-          <span style={{ color: "var(--danger)", fontWeight: 600 }}>{member.today_removed} removed</span>
+        <div style={{ display: "flex", gap: 16, fontSize: 12, alignItems: "center" }}>
+          <span style={{ color: "var(--ink)", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+            {formatHours(member.hours_seconds)}
+          </span>
+          <span style={{ color: "var(--good)", fontWeight: 600 }}>{member.approved} approved</span>
+          <span style={{ color: "var(--danger)", fontWeight: 600 }}>{member.removed} removed</span>
         </div>
       </div>
       {shots.length === 0 ? (
         <p style={{ fontSize: 12, color: "var(--muted)", padding: "10px 4px" }}>
-          No approved screenshots today.
+          No approved screenshots in this range.
         </p>
       ) : (
         <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
@@ -229,7 +354,17 @@ function DetailDrawer({ shot, onClose }: { shot: SelectedShot | null; onClose: (
 
 export default function DashboardClient({ data }: { data: DashboardData }) {
   const [selectedShot, setSelectedShot] = useState<SelectedShot | null>(null);
-  const today = new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  const [search, setSearch] = useState("");
+
+  const rangeLabel = formatRangeLabel(data.range.from, data.range.to);
+
+  // Name filter is purely client-side — the roster is already loaded, no need
+  // to round-trip. Case-insensitive substring match against full_name.
+  const filteredRoster = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return data.roster;
+    return data.roster.filter((m) => m.full_name.toLowerCase().includes(q));
+  }, [data.roster, search]);
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--bg)" }}>
@@ -239,13 +374,15 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
         <Topbar me={data.me} />
 
         <main style={{ flex: 1, overflowY: "auto", padding: "24px 28px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)" }}>Today&apos;s screenshots</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)" }}>Team activity</h1>
             <div style={{ display: "flex", alignItems: "center", gap: 7, background: "var(--danger-bg)", border: "1px solid rgba(255,74,142,0.2)", borderRadius: 100, padding: "4px 12px" }}>
               <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--g-pink)", animation: "pulse-dot 2s ease-in-out infinite" }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--g-pink)" }}>{today}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--g-pink)" }}>{rangeLabel}</span>
             </div>
           </div>
+
+          <Controls range={data.range} search={search} onSearchChange={setSearch} />
 
           <div style={{ marginBottom: 24 }}>
             <KPIStrip totals={data.totals} totalMembers={data.roster.length} />
@@ -268,15 +405,26 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
             <div>
               <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 16 }}>
                 Approved by teammate
+                {search && (
+                  <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 500, color: "var(--muted)", textTransform: "none", letterSpacing: 0 }}>
+                    ({filteredRoster.length} of {data.roster.length} match &ldquo;{search}&rdquo;)
+                  </span>
+                )}
               </p>
-              {data.roster.map((m) => (
-                <MemberStream
-                  key={m.id}
-                  member={m}
-                  shots={data.shotsByMember[m.id] ?? []}
-                  onSelectShot={(s) => setSelectedShot(s)}
-                />
-              ))}
+              {filteredRoster.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--muted)", padding: "20px 4px" }}>
+                  No teammates match &ldquo;{search}&rdquo;.
+                </p>
+              ) : (
+                filteredRoster.map((m) => (
+                  <MemberStream
+                    key={m.id}
+                    member={m}
+                    shots={data.shotsByMember[m.id] ?? []}
+                    onSelectShot={(s) => setSelectedShot(s)}
+                  />
+                ))
+              )}
             </div>
           )}
         </main>
