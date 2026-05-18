@@ -5,6 +5,7 @@ import Link from "next/link";
 import Avatar from "@/components/ui/Avatar";
 import type { MemberStats, ApprovedShot } from "@/lib/data/dashboard";
 import DateRangeControls from "./_components/DateRangeControls";
+import { useDashboardRealtime } from "./_components/useDashboardRealtime";
 
 export type DashboardData = {
   me: { id: string; full_name: string; avatar_color: string };
@@ -355,6 +356,10 @@ function DetailDrawer({ shot, onClose }: { shot: SelectedShot | null; onClose: (
 export default function DashboardClient({ data }: { data: DashboardData }) {
   const [selectedShot, setSelectedShot] = useState<SelectedShot | null>(null);
   const [search, setSearch] = useState("");
+
+  // Live updates: any session change in the org or any pending→approved
+  // transition triggers a server re-fetch via router.refresh().
+  useDashboardRealtime(data.org.id);
 
   const rangeLabel = formatRangeLabel(data.range.from, data.range.to);
 

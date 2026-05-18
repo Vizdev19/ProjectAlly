@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Avatar from "@/components/ui/Avatar";
 import DateRangeControls from "../../_components/DateRangeControls";
+import { useDashboardRealtime } from "../../_components/useDashboardRealtime";
 import type { Member, TrackingSession } from "@/lib/types/database";
 import type { ApprovedShot, ProjectBreakdown } from "@/lib/data/dashboard";
 
@@ -134,6 +135,10 @@ function DetailDrawer({ shot, member, onClose }: { shot: ApprovedShot | null; me
 export default function MemberDetailClient({ data }: { data: MemberDetailData }) {
   const { member } = data;
   const [selectedShot, setSelectedShot] = useState<ApprovedShot | null>(null);
+
+  // Same realtime subscription as the dashboard — keeps the live status,
+  // session list, and approved-shots grid current without manual refresh.
+  useDashboardRealtime(member.org_id);
 
   const status: "tracking" | "paused" | "idle" =
     data.activeSession?.status === "tracking" ? "tracking" :
