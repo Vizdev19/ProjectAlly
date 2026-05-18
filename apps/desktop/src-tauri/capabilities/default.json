@@ -10,6 +10,7 @@
     "core:event:default",
     "core:path:default",
     "updater:default",
+    "process:default",
     "notification:default",
     "autostart:default",
     {

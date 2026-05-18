@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, supabase } from "./supabase";
+import { checkForUpdates } from "./updater";
 import SignIn from "./SignIn";
 import Tracker from "./Tracker";
 
@@ -53,6 +54,10 @@ export default function App() {
   }, []);
 
   useEffect(() => { void hydrate(); }, [hydrate]);
+
+  // Auto-check for new signed releases once per app launch. Runs in
+  // background; failures are non-fatal.
+  useEffect(() => { void checkForUpdates(); }, []);
 
   // Re-sync the Rust side whenever Supabase rotates the access token
   useEffect(() => {
