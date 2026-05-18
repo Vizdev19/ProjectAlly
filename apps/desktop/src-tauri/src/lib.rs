@@ -1,4 +1,4 @@
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager, WindowEvent};
 
 mod screenshot;
 mod session;
@@ -96,6 +96,35 @@ pub fn run() {
                 eprintln!("[setup] tray::setup_tray failed: {e:?}");
                 return Err(e.into());
             }
+
+            // Window lifecycle:
+            //  - The window starts hidden (visible:false in tauri.conf.json)
+            //    so autostart at login doesn't flash a window before we can
+            //    hide it.
+            //  - If --minimized was passed (the autostart args), leave it
+            //    hidden; the tray icon is the only UI.
+            //  - Otherwise show + focus immediately so a normal launch
+            //    behaves the same as before.
+            //  - Intercept close so X / Cmd-W hides instead of quitting the
+            //    process. On Windows the default is to exit when the last
+            //    window closes, which would kill the capture loop and the
+            //    tray icon. Users quit explicitly via tray → Quit.
+            if let Some(window) = app.get_webview_window("main") {
+                let minimized = std::env::args().any(|a| a == "--minimized");
+                if !minimized {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+
+                let w = window.clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = w.hide();
+                    }
+                });
+            }
+
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 screenshot::capture_loop(app_handle).await;
