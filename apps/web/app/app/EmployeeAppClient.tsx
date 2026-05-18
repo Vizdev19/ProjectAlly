@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
+import ProfileMenu from "@/components/ui/ProfileMenu";
 import type { TrackingSession } from "@/lib/types/database";
 import type { EmployeeShot } from "@/lib/data/dashboard";
 import { startSession, pauseSession, resumeSession, endSession } from "@/lib/actions/sessions";
@@ -79,6 +80,10 @@ function Sidebar({ me, status }: { me: EmployeeAppData["me"]; status: TrackingSe
             Nothing leaves your machine until you approve it.
           </p>
         </div>
+      </div>
+
+      <div style={{ padding: "10px 12px 12px", borderTop: "1px solid var(--line)" }}>
+        <ProfileMenu me={me} variant="sidebar" />
       </div>
     </aside>
   );

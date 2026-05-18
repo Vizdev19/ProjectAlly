@@ -10,7 +10,7 @@ export default async function TeamPage() {
 
   const { data: me } = await supabase
     .from("members")
-    .select("id, role, org_id")
+    .select("id, full_name, role, org_id, avatar_color")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -40,6 +40,7 @@ export default async function TeamPage() {
 
   return (
     <TeamClient
+      me={{ full_name: me.full_name, avatar_color: me.avatar_color }}
       members={members ?? []}
       invites={invites ?? []}
       appUrl={appUrl}

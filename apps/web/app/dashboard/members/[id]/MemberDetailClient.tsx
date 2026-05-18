@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Avatar from "@/components/ui/Avatar";
+import ProfileMenu from "@/components/ui/ProfileMenu";
 import DateRangeControls from "../../_components/DateRangeControls";
 import { useDashboardRealtime } from "../../_components/useDashboardRealtime";
 import type { Member, TrackingSession } from "@/lib/types/database";
@@ -164,7 +165,7 @@ export default function MemberDetailClient({ data }: { data: MemberDetailData })
         <div style={{ height: 58, borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", padding: "0 24px", gap: 16, background: "var(--bg)" }}>
           <Link href="/dashboard" style={{ fontSize: 13, color: "var(--muted)", textDecoration: "none" }}>← Dashboard</Link>
           <div style={{ flex: 1 }} />
-          <Avatar initials={initialsOf(data.me.full_name)} color={data.me.avatar_color} size={34} />
+          <ProfileMenu me={data.me} variant="topbar" />
         </div>
 
         <main style={{ flex: 1, overflowY: "auto", padding: "24px 28px", maxWidth: 1080, width: "100%" }}>

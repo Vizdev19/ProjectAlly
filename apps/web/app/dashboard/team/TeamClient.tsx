@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import ProfileMenu from "@/components/ui/ProfileMenu";
 import { createInvite, revokeInvite } from "@/lib/auth/actions";
 
 type Member = {
@@ -25,11 +27,13 @@ type Invite = {
 };
 
 export default function TeamClient({
+  me,
   members,
   invites,
   appUrl,
   currentMemberId,
 }: {
+  me: { full_name: string; avatar_color: string };
   members: Member[];
   invites: Invite[];
   appUrl: string;
@@ -91,15 +95,25 @@ export default function TeamClient({
   }
 
   return (
-    <div style={{ maxWidth: 880, margin: "0 auto", padding: "48px 28px" }}>
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>
-          Team & invites
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--muted)" }}>
-          Invite teammates to your workspace. Each invite is a one-time link tied to a specific email.
-        </p>
+    <div>
+      {/* Topbar mirrors the per-member detail page: back link on the left,
+          profile menu on the right. Keeps sign-out reachable from any admin
+          page without depending on the sidebar. */}
+      <div style={{ height: 58, borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", padding: "0 24px", gap: 16, background: "var(--bg)" }}>
+        <Link href="/dashboard" style={{ fontSize: 13, color: "var(--muted)", textDecoration: "none" }}>← Dashboard</Link>
+        <div style={{ flex: 1 }} />
+        <ProfileMenu me={me} variant="topbar" />
       </div>
+
+      <div style={{ maxWidth: 880, margin: "0 auto", padding: "48px 28px" }}>
+        <div style={{ marginBottom: 32 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>
+            Team & invites
+          </h1>
+          <p style={{ fontSize: 14, color: "var(--muted)" }}>
+            Invite teammates to your workspace. Each invite is a one-time link tied to a specific email.
+          </p>
+        </div>
 
       {/* Invite form */}
       <section style={cardStyle}>
@@ -189,6 +203,7 @@ export default function TeamClient({
           ))}
         </div>
       </section>
+      </div>
     </div>
   );
 }
